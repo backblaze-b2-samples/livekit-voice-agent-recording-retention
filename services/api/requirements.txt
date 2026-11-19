@@ -7,7 +7,7 @@ uvicorn[standard]>=0.34.0
 python-dotenv>=1.0.0
 pydantic>=2.10.0
 pydantic-settings>=2.7.0
-boto3>=1.35.0
+boto3>=1.44.3
 # LiveKit server API: rooms, agent dispatch, Egress, tokens, webhook verification.
 # Agents 1.8.x requires livekit-api<2, so the agent image and this API share 1.2.x.
 livekit-api>=1.2.2,<1.3
