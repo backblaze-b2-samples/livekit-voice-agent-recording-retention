@@ -114,8 +114,14 @@ def _load_many(keys: list[str]) -> list[SessionManifest]:
         return [m for m in pool.map(load, keys) if m is not None]
 
 
+def _newest_first(items: list[SessionManifest]) -> list[SessionManifest]:
+    # Session ids end in random hex, so id order is not creation order within a day.
+    return sorted(items, key=lambda m: (m.created_at, m.session_id), reverse=True)
+
+
 def all_manifests() -> list[SessionManifest]:
-    return _load_many(manifests.list_manifest_keys())
+    """Every session, newest `created_at` first."""
+    return _newest_first(_load_many(manifests.list_manifest_keys()))
 
 
 def list_sessions(
@@ -125,30 +131,28 @@ def list_sessions(
     cursor: str | None = None,
     limit: int = 50,
 ) -> SessionList:
+    """Sessions newest `created_at` first; `cursor` is the last session id of the previous page.
+
+    Ordering by creation time needs every candidate manifest read (the id's
+    random suffix carries no time), the same read the dashboard stats make.
+    """
     if limit < 1 or limit > MAX_LIMIT:
         raise ValueError(f"limit must be between 1 and {MAX_LIMIT}")
     keys = manifests.list_manifest_keys()
     if date:
         keys = [k for k in keys if f"sessions/{date}/" in k]
+    ordered = [
+        m
+        for m in _newest_first(_load_many(keys))
+        if (not session_class or m.session_class == session_class)
+        and (not status or m.status == status)
+    ]
     if cursor:
-        keys = [k for k in keys if (layout.session_id_from_key(k) or "") < cursor]
-
-    items = []
-    consumed = 0
-    while consumed < len(keys) and len(items) < limit:
-        batch = keys[consumed : consumed + limit]
-        consumed += len(batch)
-        for manifest in _load_many(batch):
-            if session_class and manifest.session_class != session_class:
-                continue
-            if status and manifest.status != status:
-                continue
-            items.append(manifests.summary(manifest))
-    truncated = len(items) > limit
-    items = items[:limit]
-    more = truncated or consumed < len(keys)
-    next_cursor = items[-1].session_id if items and more else None
-    return SessionList(items=items, next_cursor=next_cursor)
+        ids = [m.session_id for m in ordered]
+        ordered = ordered[ids.index(cursor) + 1 :] if cursor in ids else []
+    page = ordered[:limit]
+    next_cursor = page[-1].session_id if page and len(ordered) > limit else None
+    return SessionList(items=[manifests.summary(m) for m in page], next_cursor=next_cursor)
 
 
 def get_detail(session_id: str) -> SessionDetail:
@@ -216,6 +220,13 @@ def prepare_reprocess(session_id: str) -> SessionManifest:
         raise SessionConflict(f"Cannot reprocess a session that is {manifest.status}.")
     if session_store.head(manifest.recording.key) is None:
         raise SessionConflict("The recording is not in B2 yet.")
+    # Back to `recorded` (= post-processing pending) so the UI shows the run in
+    # progress instead of the previous outcome until process_session settles it.
+    with manifests.session_lock(session_id):
+        manifest = get_manifest(session_id)
+        manifest.status = "recorded"
+        manifest.error = None
+        manifests.save(manifest)
     return manifest
 
 

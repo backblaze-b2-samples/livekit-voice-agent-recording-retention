@@ -5,6 +5,7 @@ import Image from "next/image";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import type { PreviewKind } from "@/lib/preview-kind";
 
 type MediaState = "loading" | "ready" | "error";
 
@@ -24,18 +25,32 @@ type MediaState = "loading" | "ready" | "error";
 export function PreviewMedia({
   url,
   filename,
-  isImage,
+  kind,
 }: {
   url: string;
   filename: string;
-  isImage: boolean;
+  kind: PreviewKind;
 }) {
   const [state, setState] = useState<MediaState>("loading");
   const hiddenUntilReady = state === "ready" ? "" : "opacity-0";
 
   return (
     <div className="relative h-[min(55svh,400px)] min-h-[220px] w-full">
-      {isImage ? (
+      {kind === "audio" ? (
+        <div className={`flex h-full w-full items-center p-4 ${hiddenUntilReady}`}>
+          <audio
+            controls
+            preload="metadata"
+            src={url}
+            className="w-full"
+            aria-label={`Play ${filename}`}
+            onLoadedMetadata={() => setState("ready")}
+            onError={() => setState("error")}
+          >
+            <track kind="captions" />
+          </audio>
+        </div>
+      ) : kind === "image" ? (
         /* `unoptimized` because presigned URLs carry their own short-lived
            expiry and we don't want Next's image optimizer caching them past
            that window. */
@@ -50,9 +65,11 @@ export function PreviewMedia({
           onError={() => setState("error")}
         />
       ) : (
+        /* PDFs and text/JSON render inline: the preview URL is presigned
+           with `Content-Disposition: inline`. */
         <iframe
           src={url}
-          className={`h-full w-full rounded ${hiddenUntilReady}`}
+          className={`h-full w-full rounded bg-background ${hiddenUntilReady}`}
           title={`Preview of ${filename}`}
           onLoad={() => setState("ready")}
           onError={() => setState("error")}

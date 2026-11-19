@@ -15,9 +15,16 @@ from app.repo.list_cache import prewarm as _prewarm_list_cache
 from app.types import FileMetadata
 from app.types.formatting import humanize_bytes
 
+# Python's built-in table has no `.ogg`; it only appears via /etc/mime.types,
+# which the slim api image lacks, so Egress recordings were listed as
+# application/octet-stream and the Files preview could not play them.
+_EXTRA_TYPES = {".ogg": "audio/ogg"}
+
 
 def _guess_content_type(key: str) -> str:
     mime, _ = mimetypes.guess_type(key)
+    if mime is None:
+        mime = _EXTRA_TYPES.get("." + key.rsplit(".", 1)[-1].lower()) if "." in key else None
     return mime or "application/octet-stream"
 
 

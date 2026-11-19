@@ -12,7 +12,6 @@ from pathlib import Path
 from app.config import settings
 from app.types import ScriptInfo
 
-_REPO_ROOT = Path(__file__).resolve().parents[4]
 _WORDS_PER_SECOND = 2.6  # espeak-ng at its default rate
 
 
@@ -45,9 +44,21 @@ class ScriptNotFound(LookupError):
     pass
 
 
+def _repo_root() -> Path:
+    """Repo root on a checkout; this service's own root when shipped alone.
+
+    In the Docker image the tree is /app/app/service/scripts.py, with no repo
+    root above it, so indexing parents[4] at import time raised IndexError and
+    crashed the API. Compose sets an absolute SESSION_SCRIPTS_DIR there, so the
+    anchor is only consulted, lazily, for a relative (checkout) value.
+    """
+    parents = Path(__file__).resolve().parents
+    return parents[4] if len(parents) > 4 else parents[2]
+
+
 def scripts_dir() -> Path:
     configured = Path(settings.session_scripts_dir)
-    return configured if configured.is_absolute() else _REPO_ROOT / configured
+    return configured if configured.is_absolute() else _repo_root() / configured
 
 
 def _load(path: Path) -> Script:

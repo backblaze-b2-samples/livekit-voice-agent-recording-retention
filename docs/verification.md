@@ -50,7 +50,7 @@ line and exits 0. Use it instead of a fixed `sleep` before driving the app with
 Playwright, curl, or a screenshot run: a sleep is simultaneously too long on a
 warm machine and too short during a cold Next.js compile.
 
-It probes `GET /health` on the API and `GET /` on the web app, over `127.0.0.1`
+It probes `GET /api/health` on the API and `GET /` on the web app, over `127.0.0.1`
 and `::1` so a v4-only uvicorn is not missed by a name lookup that resolves to
 IPv6 first. With no explicit port it scans the same ranges the kit really uses —
 web 3000-3009 (Next's own fallback) and API 8000-8009

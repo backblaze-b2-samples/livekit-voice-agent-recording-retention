@@ -23,6 +23,7 @@ import {
 import { JoinPanel } from "@/components/sessions/join-panel";
 import { SessionEditForm } from "@/components/sessions/session-edit-form";
 import { SessionEvidence } from "@/components/sessions/session-evidence";
+import { SessionStateBanner } from "@/components/sessions/session-state-banner";
 import { SessionStatusBadge } from "@/components/sessions/session-status-badge";
 import { previewHref } from "@/lib/preview-deep-link";
 import { useDeleteSession, useReprocessSession, useSession } from "@/lib/queries";
@@ -108,11 +109,14 @@ export function SessionDetailView({ sessionId }: { sessionId: string }) {
         </div>
       </div>
 
-      {m.error && (
-        <p role="alert" className="rounded-md border border-destructive/40 p-3 text-sm text-destructive">
-          {m.error}
-        </p>
-      )}
+      <SessionStateBanner
+        status={m.status}
+        mode={m.mode}
+        error={m.error}
+        createdAt={m.created_at}
+        scriptId={m.script_id}
+        recordingDurationS={m.recording.duration_s}
+      />
 
       {m.mode === "interactive" && m.status === "recording" && <JoinPanel sessionId={sessionId} />}
 

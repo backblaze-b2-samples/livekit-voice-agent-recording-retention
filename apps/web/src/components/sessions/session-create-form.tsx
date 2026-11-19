@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -31,12 +32,13 @@ import { useCreateSession, useRetentionPolicy, useScripts } from "@/lib/queries"
 import { SESSION_CLASSES, retentionLabel } from "@/lib/session-format";
 import {
   SESSION_CREATE_DEFAULTS,
+  defaultScriptId,
   sessionCreateSchema,
   type SessionCreateValues,
 } from "@/lib/session-schema";
 
 const FIRST_RUN_HINT =
-  "For a first run choose the support-handoff script, debug class and scripted mode.";
+  "For a first run keep the support-handoff script, debug class and scripted mode.";
 
 export function SessionCreateForm() {
   const router = useRouter();
@@ -47,6 +49,12 @@ export function SessionCreateForm() {
     resolver: zodResolver(sessionCreateSchema),
     defaultValues: SESSION_CREATE_DEFAULTS,
   });
+  // Preselect a bundled script once they load, unless the user already chose one.
+  useEffect(() => {
+    if (!scripts || form.getValues("script_id")) return;
+    const id = defaultScriptId(scripts.items.map((s) => s.id));
+    if (id) form.setValue("script_id", id);
+  }, [scripts, form]);
   const days = new Map(policy?.classes.map((c) => [c.session_class, c.retain_days]));
 
   const onSubmit = (values: SessionCreateValues) => {

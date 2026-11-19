@@ -102,3 +102,17 @@ def test_python_runtime_accepts_baseline_and_newer() -> None:
     )
 
     assert result.stdout.strip() == "false,true,true,false"
+
+
+def test_model_stack_pins_a_pyav_faster_whisper_accepts() -> None:
+    """faster-whisper 1.2.1 passes av.open(metadata_errors=...), which PyAV 19 removed.
+
+    With av 19 every transcription fails with "open() got an unexpected keyword
+    argument 'metadata_errors'", so the model stack must keep PyAV below 19
+    until faster-whisper stops passing that keyword.
+    """
+    lines = non_comment_lines(API_ROOT / "requirements-ml.txt")
+    pins = dict(line.split("==", 1) for line in lines if "==" in line)
+
+    assert pins["faster-whisper"] == "1.2.1"
+    assert int(pins["av"].split(".", 1)[0]) < 19

@@ -102,6 +102,32 @@ async def test_list_detail_patch_and_delete(client, store, livekit, monkeypatch)
 
 
 @pytest.mark.asyncio
+async def test_list_and_dashboard_order_by_created_time_not_id(client, store, livekit):
+    from datetime import UTC, datetime
+
+    from app.service import manifests
+
+    sids = [await _create(client) for _ in range(3)]
+    # Ids end in random hex; give them creation times that disagree with id order.
+    by_id = sorted(sids)
+    times = {by_id[0]: 15, by_id[1]: 14, by_id[2]: 16}
+    for sid, hour in times.items():
+        m = manifests.load(sid)
+        m.created_at = datetime(2026, 11, 19, hour, 0, tzinfo=UTC)
+        manifests.save(m)
+    expected = sorted(sids, key=lambda s: times[s], reverse=True)
+
+    listed = (await client.get("/api/sessions")).json()["items"]
+    first = (await client.get("/api/sessions", params={"limit": 2})).json()
+    rest = (await client.get("/api/sessions", params={"limit": 2, "cursor": first["next_cursor"]})).json()
+    stats = (await client.get("/api/stats")).json()
+
+    assert [s["session_id"] for s in listed] == expected
+    assert [s["session_id"] for s in first["items"] + rest["items"]] == expected
+    assert [s["session_id"] for s in stats["recent_sessions"]] == expected
+
+
+@pytest.mark.asyncio
 async def test_list_paginates_with_cursor(client, store, livekit):
     ids = [await _create(client) for _ in range(3)]
     first = (await client.get("/api/sessions", params={"limit": 2})).json()
@@ -133,3 +159,26 @@ async def test_unknown_or_malformed_session_is_404(client, store):
 async def test_reprocess_requires_a_recording(client, store, livekit):
     sid = await _create(client)
     assert (await client.post(f"/api/sessions/{sid}/reprocess")).status_code == 409
+
+
+@pytest.mark.asyncio
+async def test_reprocess_moves_a_failed_session_back_to_in_progress(
+    client, store, livekit, monkeypatch
+):
+    from app.runtime import sessions as sessions_runtime
+    from app.service import manifests
+
+    sid = await _create(client)
+    manifest = manifests.load(sid)
+    manifest.status, manifest.error = "failed", "post-processing failed: boom"
+    manifests.save(manifest)
+    store.put_bytes(layout.recording_key(sid), b"OggS", "audio/ogg")
+    queued: list[str] = []
+    monkeypatch.setattr(sessions_runtime.postprocess, "process_session", queued.append)
+
+    response = await client.post(f"/api/sessions/{sid}/reprocess")
+
+    assert response.status_code == 202
+    assert response.json()["status"] == "recorded" and response.json()["error"] is None
+    assert store.json(layout.manifest_key(sid))["status"] == "recorded"
+    assert queued == [sid]

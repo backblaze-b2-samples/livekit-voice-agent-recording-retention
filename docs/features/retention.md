@@ -34,14 +34,15 @@ Keep or remove each session according to its class, free the bytes of what is re
 - Applied: delete versions, rewrite the manifest, write the report
 
 ## Edge Cases
-- Re-running the same day -> previously removed sessions appear under `already_expired`; the report for that date is overwritten by the newer applied run
+- Re-running the same day -> previously removed sessions appear under `already_expired`; the report for that date is overwritten by the newer applied run, and the "Reports in B2" row is replaced in the client cache as soon as the run returns (`recordAppliedReport`), then refetched
+- Each report key on `/retention` links to its preview on `/files` (`/files?preview=<key>`), where the JSON renders inline
 - A class change after recording -> `retain_until` recomputed from the recording's end
 - Versioned bucket -> deleting by version id removes the data, not just a delete marker
 - `ARCHIVE_PREFIX` set -> retention only sees sessions under that prefix
 
 ## UX States (if applicable)
 - Empty: "No applied runs yet"
-- Loading: skeletons; run button reads "Running..."
+- Loading: skeletons; run button reads "Running..." with `aria-busy` and a `role="status"` label
 - Error: toast with the API detail
 
 ## Verification

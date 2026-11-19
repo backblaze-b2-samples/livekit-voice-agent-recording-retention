@@ -2,13 +2,20 @@ import { describe, expect, it } from "vitest";
 
 import {
   SESSION_CREATE_DEFAULTS,
+  defaultScriptId,
   retentionRunSchema,
   sessionCreateSchema,
   sessionEditSchema,
 } from "./session-schema";
 
 describe("session schemas", () => {
-  it("requires a script on create (no autofill)", () => {
+  it("preselects support-handoff, else the first bundled script", () => {
+    expect(defaultScriptId(["appointment-reminder", "support-handoff"])).toBe("support-handoff");
+    expect(defaultScriptId(["order-status", "appointment-reminder"])).toBe("order-status");
+    expect(defaultScriptId([])).toBe("");
+  });
+
+  it("requires a script on create (empty until scripts load)", () => {
     expect(sessionCreateSchema.safeParse(SESSION_CREATE_DEFAULTS).success).toBe(false);
     expect(
       sessionCreateSchema.safeParse({ ...SESSION_CREATE_DEFAULTS, script_id: "support-handoff" })

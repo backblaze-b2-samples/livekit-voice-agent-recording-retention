@@ -6,7 +6,10 @@
 # faster-whisper 1.2.1 (MIT) runs Whisper tiny.en (MIT weights) on CTranslate2.
 # av (PyAV, BSD) is what faster-whisper decodes audio with, and what the live
 # test uses to measure the recording's real duration.
+# av stays on 18.x: faster-whisper 1.2.1 calls av.open(..., metadata_errors=...),
+# a keyword PyAV 19 removed, so av 19 fails every transcription with a TypeError
+# (tests/test_dependency_lock.py guards this pairing).
 faster-whisper==1.2.1
-av==19.0.2
+av==18.1.0
 # faster-whisper imports requests without declaring it on some releases.
 requests>=2.31.0,<3

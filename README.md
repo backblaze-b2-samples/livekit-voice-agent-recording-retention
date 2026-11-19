@@ -302,7 +302,7 @@ review             NOTE  Egress's built-in uploader cannot carry a user agent (s
 | `livekit-agents` | `1.8.10` (pins `livekit==1.1.21`) | `services/agent/requirements.txt` |
 | `livekit-api` | `1.2.2` | `services/agent/requirements.txt`, `services/api/requirements.lock` |
 | `faster-whisper` | `1.2.1`, model `tiny.en` | `services/api/requirements-ml.txt` |
-| `av` (PyAV) | `19.0.2` | `services/api/requirements-ml.txt` |
+| `av` (PyAV) | `18.1.0` (faster-whisper 1.2.1 needs < 19) | `services/api/requirements-ml.txt` |
 | `livekit-client` | `2.23.0` | `apps/web/package.json` |
 
 Egress v1.15.0 includes the storage-library change that sends AWS SDK request

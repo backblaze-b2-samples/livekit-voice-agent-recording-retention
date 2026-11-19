@@ -34,7 +34,7 @@ export function StatsCards() {
     { title: "Passed evaluations", value: stats?.passed_evaluations ?? 0, icon: CheckCircle2 },
     {
       title: "Last retention run",
-      value: last ? `${last.date}: -${last.removed_total}` : "never",
+      value: last ? `${last.date}: ${last.removed_total} removed` : "never",
       icon: Archive,
     },
   ];

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  failureGuidance,
+  sessionProgress,
+  sessionProgressValue,
   formatBytes,
   formatDuration,
   formatWer,
@@ -38,6 +41,51 @@ describe("session-format", () => {
     expect(statusVariant("failed")).toBe("destructive");
     expect(statusVariant("processed")).toBe("default");
     expect(statusVariant("recording")).toBe("secondary");
+  });
+
+  it("describes the running stage until a session settles", () => {
+    expect(sessionProgress("recording", "scripted")?.stage).toMatch(/^Recording/);
+    expect(sessionProgress("recording", "interactive")?.stage).toMatch(/room is live/);
+    expect(sessionProgress("recorded", "scripted")?.stage).toMatch(/^Processing/);
+    for (const status of ["processed", "failed", "expired"]) {
+      expect(sessionProgress(status, "scripted")).toBeNull();
+    }
+  });
+
+  it("gives a determinate overall progress that advances and never claims done", () => {
+    // Scripted recording: step 1 of 2, elapsed vs the script's estimate plus overhead.
+    const start = sessionProgressValue({ status: "recording", mode: "scripted", elapsedS: 0, scriptDurationS: 20 });
+    const mid = sessionProgressValue({ status: "recording", mode: "scripted", elapsedS: 15, scriptDurationS: 20 });
+    const late = sessionProgressValue({ status: "recording", mode: "scripted", elapsedS: 600, scriptDurationS: 20 });
+    expect(start).toMatchObject({ step: 1, steps: 2, percent: 0 });
+    expect(mid!.percent).toBeGreaterThan(start!.percent);
+    expect(late!.percent).toBeLessThan(50);
+    expect(late!.percent).toBeGreaterThan(mid!.percent);
+
+    // Processing: step 2 of 2, from 50% upward, capped below 100%.
+    const p0 = sessionProgressValue({ status: "recorded", mode: "scripted", elapsedS: 0, recordingDurationS: 23 });
+    const p1 = sessionProgressValue({ status: "recorded", mode: "scripted", elapsedS: 12, recordingDurationS: 23 });
+    const pLate = sessionProgressValue({ status: "recorded", mode: "scripted", elapsedS: 900, recordingDurationS: 23 });
+    expect(p0).toMatchObject({ step: 2, steps: 2, percent: 50 });
+    expect(p1!.percent).toBeGreaterThan(50);
+    expect(pLate!.percent).toBeLessThan(100);
+    expect(p1!.label).toMatch(/Step 2 of 2/);
+  });
+
+  it("has no determinate progress for a live interactive room or a settled session", () => {
+    expect(sessionProgressValue({ status: "recording", mode: "interactive", elapsedS: 5 })).toBeNull();
+    for (const status of ["processed", "failed", "expired"]) {
+      expect(sessionProgressValue({ status, mode: "scripted", elapsedS: 5 })).toBeNull();
+    }
+  });
+
+  it("turns a raw failure into a readable reason and a next step", () => {
+    const post = failureGuidance("post-processing failed: open() got an unexpected keyword");
+    expect(post.title).toMatch(/safe in B2/);
+    expect(post.action).toMatch(/Reprocess/);
+    expect(failureGuidance("LiveKit start failed: boom").action).toMatch(/new session/);
+    expect(failureGuidance("Egress ended with EGRESS_FAILED").title).toMatch(/did not complete/);
+    expect(failureGuidance(null).action).toMatch(/new session/);
   });
 
   it("uses the UTC date", () => {

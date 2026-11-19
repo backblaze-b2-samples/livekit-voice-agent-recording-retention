@@ -56,3 +56,23 @@ Known tech debt items. Agents update this when they discover or create tech debt
 | Custom `FileNotFoundError` shadowed the built-in | Renamed to `FileNotFoundServiceError` |
 | Dropzone accepted any file type client-side | `accept` allow-list mirroring backend `ALLOWED_TYPES` (tested for drift) |
 | No test harness for feature specs | pytest suite across upload, files, activity, errors, validation, rate limit, pagination |
+
+## 2026-11-19 — verify
+
+- /retention — Run retention defaults to dry run; per-day report table empty until an applied run → not obvious the per-day report needs a second applied run (.local/verify/A/r1-12-dryrun-today.png)
+- /sessions/new — Starting button shows stage text but no spinner → no motion indicator on a ~3s wait (.local/verify/B/r1-00-start-clicked.png)
+- /sessions/[id] — Audio player shows 0:00 / 0:00 before playback (preload=none) → duration not shown until play (.local/verify/C/r1-run1-c-final.png)
+- /sessions/new loading — Loading skeleton is dashboard-shaped (4 cards, 2 panels) instead of form-shaped → placeholder belongs to a different page, briefly confusing (.local/verify/A/r2-02-new-session-form.png)
+- /sessions/[id] just started — 1-7s grey skeleton plus toast before the stage banner renders → first seconds show only a skeleton (.local/verify/A/r2-03-session-just-started.png)
+- /sessions/[id] just created — ~3.6s bare skeleton before status renders → short blank moment before status (.local/verify/B/r2-01-midwait-recording.png)
+- /sessions/[id] processing — Reprocess enabled during Processing; audio shows 0:00 / 0:00 until metadata loads → minor control-state and player polish (.local/verify/B/r2-11-reprocess-midwait.png)
+- /retention — busyState reports busy:false while button shows Running… → retention run state not exposed via aria-busy/role=status (.local/verify/B/r2-14-retention-result.png)
+- /sessions/[id] evaluation — Passed evaluation shows only 4/4 count without listing phrases → passed evaluation does not list matched phrases (.local/verify/C/r2-run1-d-evaluation.png)
+- /retention — A run as of today reports 0 removed; removal by class only shows with a future As-of date; hint says only Defaults to today (UTC) → page does not suggest the As-of date to preview removal, so a first-time user never sees retention remove anything (.local/verify/A/r3-09-dryrun-today.png)
+- /retention — Run retention button has an empty accessible name (label wrapped in role=status) → screen readers and role-based automation cannot find the primary action by name (.local/verify/A/r3-08-retention-initial.png)
+- / dashboard — Last retention run and other stat cards are not links → missed wayfinding shortcut to Retention/report (.local/verify/A/r3-12-dashboard-after.png)
+- /sessions/new — Start click shows faded Starting room and Egress... label, no spinner, not exposed as busy → no spinner or aria-busy on the start wait (.local/verify/B/r3-00-start-clicked.png)
+- /sessions/[id] just created — ~1s bare pulsing placeholder before the progress bar appears → short gap with no on-page stage report (.local/verify/B/r3-01-midwait-recording.png)
+- /sessions/[id] — Progress bar advances on a timer and is labelled (estimated) → progress is estimated, not measured from Egress/Whisper (.local/verify/B/r3-04-midwait-processing.png)
+- friction (unresolved after 3 rounds): /sessions/new — After Start session only a disabled Starting room and Egress... button for ~4-34s, no spinner; busyState busy:false → start wait reads as stalled with no in-progress indicator (.local/verify/A/r3-07-start-pending.png)
+- friction (unresolved after 3 rounds): /sessions/[id] evaluation — Passed: WER 3.9% ... 3/3 expected phrases heard with no list of the phrases checked → evaluation does not show which script-specific phrases were scored (.local/verify/C/r3-run2-d-evaluation.png)

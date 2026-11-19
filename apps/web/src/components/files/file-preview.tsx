@@ -17,6 +17,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { FileMetadataPanel } from "@/components/files/file-metadata-panel";
 import { PreviewMedia } from "@/components/files/file-preview-media";
+import { previewKind } from "@/lib/preview-kind";
 import { useFileDetail, usePreviewUrl } from "@/lib/queries";
 import type { FileMetadata } from "@livekit-voice-agent-recording-retention/shared";
 
@@ -108,8 +109,7 @@ export function FilePreview({
 
   if (!file) return null;
 
-  const isImage = file.content_type.startsWith("image/");
-  const isPdf = file.content_type === "application/pdf";
+  const kind = previewKind(file.content_type, file.filename);
   const isDownloading = downloadingKey === file.key;
   const previewError =
     isError && error instanceof Error
@@ -136,13 +136,13 @@ export function FilePreview({
                 <p className="sr-only">Loading file preview...</p>
                 <Skeleton className="h-[min(55svh,400px)] min-h-[220px] w-full" />
               </div>
-            ) : (isImage || isPdf) && previewUrl ? (
+            ) : kind && previewUrl ? (
               // Keyed on the URL so switching files resets the media state.
               <PreviewMedia
                 key={previewUrl}
                 url={previewUrl}
                 filename={file.filename}
-                isImage={isImage}
+                kind={kind}
               />
             ) : (
               <div className="max-w-sm p-8 text-center text-muted-foreground">

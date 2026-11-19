@@ -34,6 +34,7 @@ import type {
   FileMetadataDetail,
   FileUrlResponse,
   RetentionReport,
+  RetentionReportList,
   RetentionRunRequest,
   SessionCreate,
   SessionDetail,
@@ -267,10 +268,32 @@ export function useDeleteSession() {
   });
 }
 
+/**
+ * Show a reprocessed session as processing (`recorded`, error cleared) the
+ * moment Reprocess is clicked, mirroring what the API does, instead of leaving
+ * the old Failed badge and error up until the next poll.
+ */
+export function markSessionReprocessing(qc: QueryClient, sessionId: string) {
+  qc.setQueryData<SessionDetail>(sessionKey(sessionId), (current) =>
+    current
+      ? { ...current, manifest: { ...current.manifest, status: "recorded", error: null } }
+      : current,
+  );
+}
+
 export function useReprocessSession(sessionId: string) {
   const qc = useQueryClient();
-  return useMutation<SessionManifest, ApiError, void>({
+  return useMutation<SessionManifest, ApiError, void, { previous?: SessionDetail }>({
     mutationFn: () => reprocessSession(sessionId),
+    onMutate: async () => {
+      await qc.cancelQueries({ queryKey: sessionKey(sessionId) });
+      const previous = qc.getQueryData<SessionDetail>(sessionKey(sessionId));
+      markSessionReprocessing(qc, sessionId);
+      return { previous };
+    },
+    onError: (_error, _vars, context) => {
+      if (context?.previous) qc.setQueryData(sessionKey(sessionId), context.previous);
+    },
     onSuccess: () => invalidateArchive(qc),
   });
 }
@@ -297,12 +320,34 @@ export function useRetentionReports() {
   });
 }
 
+/**
+ * Put an applied run's report into the cached "Reports in B2" list right away,
+ * replacing the same day's row, so the table agrees with the success toast
+ * instead of showing the previous report until the refetch (a B2 list plus one
+ * read per report) returns. Dry runs write nothing and change nothing.
+ */
+export function recordAppliedReport(qc: QueryClient, report: RetentionReport) {
+  if (report.dry_run || !report.report_key) return;
+  const row = {
+    date: report.date,
+    key: report.report_key,
+    kept_total: report.kept_total,
+    removed_total: report.removed_total,
+    generated_at: report.generated_at,
+  };
+  qc.setQueryData<RetentionReportList>(qk.retentionReports(), (current) => {
+    const others = (current?.items ?? []).filter((r) => r.key !== row.key);
+    return { items: [row, ...others].sort((a, b) => b.date.localeCompare(a.date)) };
+  });
+}
+
 export function useRunRetention() {
   const qc = useQueryClient();
   return useMutation<RetentionReport, ApiError, RetentionRunRequest>({
     mutationFn: runRetention,
     onSuccess: (report) => {
       if (!report.dry_run) {
+        recordAppliedReport(qc, report);
         qc.invalidateQueries({ queryKey: [...qk.all, "retention"] });
         invalidateArchive(qc);
       }

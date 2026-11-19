@@ -136,7 +136,7 @@ function probeHttp(host, port, path, timeoutMs) {
       (response) => {
         let body = "";
         // Cap the body: a ready check must not pull a whole HTML page into
-        // memory, and /health is a few dozen bytes.
+        // memory, and /api/health is a few dozen bytes.
         response.setEncoding("utf8");
         response.on("data", (chunk) => {
           if (body.length < 2_000) body += chunk;
@@ -220,7 +220,11 @@ function describePorts(ports) {
   return `ports ${ports[0]}-${ports[ports.length - 1]}`;
 }
 
-/** The API is ready when /health answers 200. `degraded` still counts: it means
+/** The API serves its health route under /api (services/api/app/runtime/health.py,
+ *  mounted with the /api prefix); a bare /health is a 404. */
+const API_HEALTH_PATH = "/api/health";
+
+/** The API is ready when /api/health answers 200. `degraded` still counts: it means
  *  the app is serving and B2 connectivity is the thing that is unhappy, which
  *  is a finding for the caller to report, not a reason to keep waiting. */
 const apiReady = (result) => result.code === 200;
@@ -234,7 +238,7 @@ function healthSummary(body) {
     const parsed = JSON.parse(body);
     if (parsed && typeof parsed.status === "string") return parsed.status;
   } catch {
-    // /health is JSON by contract; a non-JSON 200 is still "answering".
+    // /api/health is JSON by contract; a non-JSON 200 is still "answering".
   }
   return "unknown";
 }
@@ -249,7 +253,7 @@ async function main() {
     targets.push(
       waitForService({
         label: "api",
-        path: "/health",
+        path: API_HEALTH_PATH,
         accept: apiReady,
         ports: candidatePorts(options.apiPort, DEFAULT_API_PORT, API_PORT_RANGE),
         deadline,
@@ -279,7 +283,7 @@ async function main() {
 
   if (failures.length === 0) {
     const parts = results.map((result) => {
-      const origin = result.url.replace(/\/health$|\/$/, "");
+      const origin = result.url.replace(/\/api\/health$|\/$/, "");
       return result.name === "api"
         ? `api=${origin} health=${healthSummary(result.body)}`
         : `${result.name}=${origin}`;

@@ -45,6 +45,7 @@ Start a voice-agent session whose audio LiveKit Egress records and uploads direc
 - Nobody joins an interactive session within 2 minutes -> the agent closes the room after speaking
 
 ## UX States (if applicable)
+- Defaults: once the scripts load, the form preselects `support-handoff` (else the first bundled script), so Start works without touching the form
 - Loading: script select shows "Loading scripts..."; submit reads "Starting room and Egress..."
 - Error: toast with the API's detail
 - Success: toast, then redirect to the session page, which polls until settled

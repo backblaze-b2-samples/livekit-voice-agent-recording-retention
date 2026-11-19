@@ -31,6 +31,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { previewHref } from "@/lib/preview-deep-link";
 import { useRetentionPolicy, useRetentionReports, useRunRetention } from "@/lib/queries";
 import { formatBytes, formatDateTime, retentionLabel } from "@/lib/session-format";
 import { retentionRunSchema, type RetentionRunValues } from "@/lib/session-schema";
@@ -158,9 +159,11 @@ export function RetentionPanel() {
                     </FormItem>
                   )}
                 />
-                <Button type="submit" disabled={run.isPending}>
+                <Button type="submit" disabled={run.isPending} aria-busy={run.isPending}>
                   <Archive className="h-4 w-4" />
-                  {run.isPending ? "Running..." : "Run retention"}
+                  <span role="status" aria-live="polite">
+                    {run.isPending ? "Running..." : "Run retention"}
+                  </span>
                 </Button>
               </form>
             </Form>
@@ -211,7 +214,15 @@ export function RetentionPanel() {
                 {reports.items.map((r) => (
                   <TableRow key={r.key}>
                     <TableCell>{r.date}</TableCell>
-                    <TableCell className="font-mono text-xs">{r.key}</TableCell>
+                    <TableCell className="font-mono text-xs">
+                      <Link
+                        href={previewHref(r.key)}
+                        className="underline-offset-2 hover:underline"
+                        aria-label={`Open report ${r.key}`}
+                      >
+                        {r.key}
+                      </Link>
+                    </TableCell>
                     <TableCell className="text-xs">{formatDateTime(r.generated_at)}</TableCell>
                     <TableCell className="text-right">{r.kept_total}</TableCell>
                     <TableCell className="text-right">{r.removed_total}</TableCell>

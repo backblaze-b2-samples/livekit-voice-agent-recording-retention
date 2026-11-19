@@ -11,7 +11,7 @@ Give an at-a-glance view of the session archive: how many sessions per class and
 ## Core Functions
 - `apps/web/src/components/dashboard/stats-cards.tsx`: four stat cards
 - `apps/web/src/components/dashboard/class-breakdown.tsx`: sessions per class (with retention) and per status
-- `apps/web/src/components/dashboard/recent-sessions-table.tsx`: the five newest sessions
+- `apps/web/src/components/dashboard/recent-sessions-table.tsx`: the five newest sessions by `created_at`
 - `apps/web/src/lib/queries.ts`: `useArchiveStats` (polls every 15 s)
 - `services/api/app/service/stats.py`: `archive_stats`
 
@@ -29,6 +29,7 @@ Give an at-a-glance view of the session archive: how many sessions per class and
 - The page renders cards, the class/status breakdown and the recent table
 
 ## Edge Cases
+- The last retention run card reads `<date>: <n> removed`
 - No sessions -> zeros and an empty-state table
 - API unreachable -> inline `ErrorState` with Retry instead of zeros
 - Expired sessions count in totals and statuses but not in recorded minutes or bytes

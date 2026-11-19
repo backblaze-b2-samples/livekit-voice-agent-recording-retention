@@ -16,8 +16,12 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
+# Inside the Docker image this file is /app/app/jobs/retention.py: there is no
+# repo root above /app, so only load the repo-root env file when a repo root
+# exists (configuration then comes from the container environment).
 _API_ROOT = Path(__file__).resolve().parents[2]
-load_dotenv(_API_ROOT.parents[1] / ".env")
+if len(_API_ROOT.parents) > 1:
+    load_dotenv(_API_ROOT.parents[1] / ".env")
 
 from app.service.retention import run  # noqa: E402
 
