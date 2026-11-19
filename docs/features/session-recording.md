@@ -34,7 +34,7 @@ Start a voice-agent session whose audio LiveKit Egress records and uploads direc
 - Create the room (empty timeout 60 s, metadata names the script and mode)
 - Write the manifest with status `recording` (the manifest-first invariant)
 - Dispatch `session-archive-test-agent` with the same metadata
-- Start Egress: `RoomCompositeEgressRequest(audio_only=True, file_outputs=[EncodedFileOutput(file_type=OGG, filepath=<literal key>, disable_manifest=True, s3=S3Upload(...))])`. The `S3Upload` carries the B2 key, `region=B2_REGION`, `endpoint=https://s3.<B2_REGION>.backblazeb2.com`, the bucket, path-style addressing and object metadata `source=b2ai-livekit-agent-session-archive`
+- Start Egress: `RoomCompositeEgressRequest(audio_only=True, file_outputs=[EncodedFileOutput(file_type=OGG, filepath=<literal key>, disable_manifest=True, s3=S3Upload(...))])`. The `S3Upload` sets `region=B2_REGION`, `endpoint=https://s3.<B2_REGION>.backblazeb2.com`, the bucket, path-style addressing and object metadata `source=b2ai-livekit-agent-session-archive`, and authenticates with the B2 application key pair from the environment
 - Merge the Egress id into the manifest (a webhook may already have updated it)
 - The agent joins, waits until the room's Egress is `EGRESS_ACTIVE`, speaks each line, then deletes the room (scripted) or waits for the human to leave (interactive, up to 10 minutes)
 

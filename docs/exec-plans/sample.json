@@ -212,38 +212,38 @@
   "attribution_token": "b2ai-livekit-agent-session-archive",
   "repo": {
     "org": "backblaze-b2-samples",
-    "name": "livekit-agent-b2-session-archive"
+    "name": "livekit-voice-agent-recording-retention"
   },
   "screenshots": [
     {
       "path": "docs/images/dashboard.png",
       "alt": "Dashboard with session, recording and evaluation metrics",
-      "caption": "**Dashboard** — sessions, recorded minutes and bytes, passed evaluations, the last retention run, sessions by class and status, and recent sessions."
+      "caption": "**Dashboard**: sessions, recorded minutes and bytes, passed evaluations, the last retention run, sessions by class and status, and recent sessions."
     },
     {
       "path": "docs/images/sessions.png",
       "alt": "Sessions list read from manifests under sessions/ in B2",
-      "caption": "**Sessions** — every session under `sessions/` in the bucket with its script, class, status, duration, size and word error rate."
+      "caption": "**Sessions**: every session under `sessions/` in the bucket with its script, class, status, duration, size and word error rate."
     },
     {
       "path": "docs/images/session-detail.png",
       "alt": "Session detail with the Egress recording, retention class and transcript",
-      "caption": "**Session detail** — the Egress recording played from B2, its key and SHA-256, the class and retention date, and the faster-whisper transcript."
+      "caption": "**Session detail**: the Egress recording played from B2, its key and SHA-256, the class and retention date, and the faster-whisper transcript."
     },
     {
       "path": "docs/images/session-evaluation.png",
       "alt": "Session evaluation tab with WER and expected-phrase result",
-      "caption": "**Session evaluation** — the pass or fail verdict with word error rate against the script and the expected phrases heard."
+      "caption": "**Session evaluation**: the pass or fail verdict with word error rate against the script and the expected phrases heard."
     },
     {
       "path": "docs/images/new-session.png",
       "alt": "New session form with script, class and mode",
-      "caption": "**New session** — pick a script, session class and mode, then start a LiveKit room that Egress records straight to B2."
+      "caption": "**New session**: pick a script, session class and mode, then start a LiveKit room that Egress records straight to B2."
     },
     {
       "path": "docs/images/retention.png",
       "alt": "Retention page with policy by class, run controls and reports in B2",
-      "caption": "**Retention** — the keep period per class, a dry-run or real retention run, and the daily reports stored in B2."
+      "caption": "**Retention**: the keep period per class, a dry-run or real retention run, and the daily reports stored in B2."
     }
   ]
 }

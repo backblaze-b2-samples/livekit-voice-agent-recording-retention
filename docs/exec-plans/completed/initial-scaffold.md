@@ -5,7 +5,7 @@ Starter kit: `backblaze-b2-samples/vibe-coding-starter-kit` at commit
 ceiling: keep its B2 scaffolding, strip what this app does not need, add the
 LiveKit session-archive surface.
 
-Publish name: `livekit-agent-b2-session-archive` (org `backblaze-b2-samples`).
+Publish name: `livekit-voice-agent-recording-retention` (org `backblaze-b2-samples`).
 Attribution token (S3 `user_agent_extra` and every `utm_content`):
 `b2ai-livekit-agent-session-archive`.
 
@@ -312,7 +312,7 @@ Exemplar: `apps/web/src/components/settings/settings-form.tsx`.
 | `deployment_targets` | `[]` (Docker Compose only; see trim note) |
 | `env_vars` | `B2_APPLICATION_KEY_ID`, `B2_APPLICATION_KEY`, `B2_BUCKET_NAME`, `B2_REGION` (required); `B2_PUBLIC_URL_BASE` (optional, commented in `.env.example`); `LIVEKIT_API_KEY`, `LIVEKIT_API_SECRET` (required, local dev values documented as placeholders); `LIVEKIT_URL` (internal, default `ws://livekit:7880`); `LIVEKIT_PUBLIC_URL` (browser, default `ws://localhost:7880`); `ARCHIVE_PREFIX`; `WHISPER_MODEL`; `WHISPER_DEVICE`; `EVAL_MAX_WER`; `RETENTION_DAYS_DEBUG`, `RETENTION_DAYS_STANDARD`, `RETENTION_DAYS_TRAINING`; `NEXT_PUBLIC_API_URL` |
 | `attribution_token` | `b2ai-livekit-agent-session-archive` |
-| `repo` | `{ "org": "backblaze-b2-samples", "name": "livekit-agent-b2-session-archive" }` |
+| `repo` | `{ "org": "backblaze-b2-samples", "name": "livekit-voice-agent-recording-retention" }` |
 | `screenshots` | `[]` |
 
 The builder writes `docs/exec-plans/sample.json` from this table as its first act,
@@ -348,7 +348,7 @@ before `pnpm gen:docs`.
 
 | From | To |
 |---|---|
-| `vibe-coding-starter-kit` (package names, workspace filters, URLs, slugs) | `livekit-voice-agent-recording-retention` (repo URLs use `livekit-agent-b2-session-archive`) |
+| `vibe-coding-starter-kit` (package names, workspace filters, URLs, slugs) | `livekit-voice-agent-recording-retention` (repo URLs use `livekit-voice-agent-recording-retention`) |
 | `@vibe-coding-starter-kit/web`, `@vibe-coding-starter-kit/shared` | `@livekit-voice-agent-recording-retention/web`, `@livekit-voice-agent-recording-retention/shared` |
 | `vibe_coding_starter_kit` (snake, if present) | `livekit_voice_agent_recording_retention` |
 | `Vibe Coding Starter Kit` (`APP_NAME`; API title, localStorage namespace and CORS rule id derive from it) | `LiveKit Agent Session Archive` |
