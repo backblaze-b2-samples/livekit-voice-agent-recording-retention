@@ -24,7 +24,31 @@ app's own features instead of rebuilding the same shell. Storage is
 <!-- gen:end readme-header -->
 
 <!-- gen:begin readme-screenshots -->
+## What it looks like
 
+**Dashboard** — sessions, recorded minutes and bytes, passed evaluations, the last retention run, sessions by class and status, and recent sessions.
+
+![Dashboard with session, recording and evaluation metrics](docs/images/dashboard.png)
+
+**Sessions** — every session under `sessions/` in the bucket with its script, class, status, duration, size and word error rate.
+
+![Sessions list read from manifests under sessions/ in B2](docs/images/sessions.png)
+
+**Session detail** — the Egress recording played from B2, its key and SHA-256, the class and retention date, and the faster-whisper transcript.
+
+![Session detail with the Egress recording, retention class and transcript](docs/images/session-detail.png)
+
+**Session evaluation** — the pass or fail verdict with word error rate against the script and the expected phrases heard.
+
+![Session evaluation tab with WER and expected-phrase result](docs/images/session-evaluation.png)
+
+**New session** — pick a script, session class and mode, then start a LiveKit room that Egress records straight to B2.
+
+![New session form with script, class and mode](docs/images/new-session.png)
+
+**Retention** — the keep period per class, a dry-run or real retention run, and the daily reports stored in B2.
+
+![Retention page with policy by class, run controls and reports in B2](docs/images/retention.png)
 <!-- gen:end readme-screenshots -->
 
 ## What this sample shows
