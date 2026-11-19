@@ -7,7 +7,9 @@ import {
   getFile,
   getFileDetail,
   getPreviewUrl,
-  uploadFile,
+  createSession,
+  deleteSession,
+  getSessions,
 } from "./api-client";
 
 type FileKeyOperation = {
@@ -22,10 +24,10 @@ type FileKeyOperation = {
 const operations: FileKeyOperation[] = [
   {
     call: getFile,
-    legacyPath: (key) => `/files/${encodeURIComponent(key)}`,
+    legacyPath: (key) => `/api/files/${encodeURIComponent(key)}`,
     method: "GET",
     name: "getFile",
-    path: "/files-by-key/metadata",
+    path: "/api/files-by-key/metadata",
     unsafeFallbackKeys: [
       "stats",
       "stats/activity",
@@ -39,30 +41,30 @@ const operations: FileKeyOperation[] = [
   },
   {
     call: getDownloadUrl,
-    legacyPath: (key) => `/files/${encodeURIComponent(key)}/download`,
+    legacyPath: (key) => `/api/files/${encodeURIComponent(key)}/download`,
     method: "GET",
     name: "getDownloadUrl",
-    path: "/files-by-key/download",
+    path: "/api/files-by-key/download",
     unsafeFallbackKeys: ["../secret.txt", "uploads/%2e%2e/secret.txt"].map((key) => ({
       key,
     })),
   },
   {
     call: getPreviewUrl,
-    legacyPath: (key) => `/files/${encodeURIComponent(key)}/preview`,
+    legacyPath: (key) => `/api/files/${encodeURIComponent(key)}/preview`,
     method: "GET",
     name: "getPreviewUrl",
-    path: "/files-by-key/preview",
+    path: "/api/files-by-key/preview",
     unsafeFallbackKeys: ["../secret.txt", "uploads/%2e%2e/secret.txt"].map((key) => ({
       key,
     })),
   },
   {
     call: deleteFile,
-    legacyPath: (key) => `/files/${encodeURIComponent(key)}`,
+    legacyPath: (key) => `/api/files/${encodeURIComponent(key)}`,
     method: "DELETE",
     name: "deleteFile",
-    path: "/files-by-key",
+    path: "/api/files-by-key",
     unsafeFallbackKeys: ["../secret.txt", "uploads/%2e%2e/secret.txt"].map((key) => ({
       key,
     })),
@@ -191,7 +193,7 @@ describe("getFileDetail", () => {
     await getFileDetail(key);
 
     expect(requestedPath()).toBe(
-      `/files-by-key/detail?${new URLSearchParams({ key })}`
+      `/api/files-by-key/detail?${new URLSearchParams({ key })}`
     );
     const init = fetchMock.mock.calls[0][1];
     expect(init?.method ?? "GET").toBe("GET");
@@ -214,63 +216,46 @@ describe("getFileDetail", () => {
   });
 });
 
-// A blocked browser→B2 PUT is the one failure a deployer hits first, and XHR
-// reports it as a contentless `error` event. The message therefore has to name
-// bucket CORS: pointing at the API instead sends people to a clean 200 in the
-// API log and wastes the debugging session.
-describe("uploadFile — direct-to-B2 PUT failure", () => {
-  class BlockedXhr {
-    static instances: BlockedXhr[] = [];
-    upload = { addEventListener: vi.fn() };
-    private handlers: Record<string, (() => void)[]> = {};
-    status = 0;
+describe("session archive client", () => {
+  it("drops empty filters from the session list query", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ items: [], next_cursor: null }));
 
-    constructor() {
-      BlockedXhr.instances.push(this);
-    }
+    await getSessions({ session_class: "debug", status: "", limit: 20 });
 
-    addEventListener(event: string, handler: () => void) {
-      (this.handlers[event] ??= []).push(handler);
-    }
-
-    open = vi.fn();
-    setRequestHeader = vi.fn();
-
-    send() {
-      // What the browser does when the bucket's CORS rejects the origin.
-      for (const handler of this.handlers.error ?? []) handler();
-    }
-  }
-
-  beforeEach(() => {
-    BlockedXhr.instances = [];
-    vi.stubGlobal("XMLHttpRequest", BlockedXhr);
+    const [url] = fetchMock.mock.calls[0];
+    expect(String(url)).toMatch(/\/api\/sessions\?session_class=debug&limit=20$/);
   });
 
-  it("blames bucket CORS, not the API", async () => {
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse({
-        headers: { "Content-Type": "text/plain" },
-        key: "uploads/note.txt",
-        method: "put",
-        url: "https://s3.example.backblazeb2.com/bucket/uploads/note.txt",
-      })
-    );
+  it("posts the create body as JSON", async () => {
+    fetchMock.mockResolvedValueOnce(jsonResponse({ session_id: "s-20261119-a1b2c3" }));
 
-    const file = new File(["hi"], "note.txt", { type: "text/plain" });
+    await createSession({ script_id: "support-handoff", session_class: "debug", mode: "scripted" });
 
-    const error = await uploadFile(file).catch((e: unknown) => e);
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toMatch(/\/api\/sessions$/);
+    expect(init?.method).toBe("POST");
+    expect(JSON.parse(String(init?.body))).toEqual({
+      script_id: "support-handoff",
+      session_class: "debug",
+      mode: "scripted",
+    });
+  });
 
-    expect(error).toBeInstanceOf(ApiError);
-    expect((error as ApiError).status).toBe(0);
-    expect((error as ApiError).message).toMatch(/bucket's CORS/);
-    expect((error as ApiError).message).not.toMatch(/API logs/);
+  it("treats a 204 delete as success without parsing a body", async () => {
+    fetchMock.mockResolvedValueOnce(new Response(null, { status: 204 }));
 
-    // The presign succeeded; verify must never run after a failed PUT.
-    expect(
-      fetchMock.mock.calls.some(([input]) =>
-        String(input).includes("/upload/verify")
-      )
-    ).toBe(false);
+    await expect(deleteSession("s-20261119-a1b2c3")).resolves.toBeUndefined();
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(String(url)).toMatch(/\/api\/sessions\/s-20261119-a1b2c3$/);
+    expect(init?.method).toBe("DELETE");
+  });
+
+  it("surfaces the API detail on a failed delete", async () => {
+    fetchMock.mockResolvedValueOnce(errorResponse(404, "Session s-1 not found"));
+
+    await expect(deleteSession("s-1")).rejects.toMatchObject({
+      status: 404,
+      message: "Session s-1 not found",
+    });
   });
 });

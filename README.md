@@ -1,235 +1,344 @@
-<!-- last_verified: 2026-08-12 -->
+<!-- last_verified: 2026-11-19 -->
 <!-- gen:begin readme-header -->
-# Vibe Coding Starter Kit
+# LiveKit Agent Session Archive
 
-Stop wiring boilerplate and start building. A well-engineered full-stack foundation — dashboard, drag-and-drop upload and a file browser — with Backblaze B2 storage already wired in, so builders skip the boilerplate loop.
+LiveKit Egress recordings, manifests and retention on Backblaze B2. Record LiveKit voice-agent sessions through Egress directly to Backblaze B2, link each recording to its transcription and evaluation in a per-session manifest, and apply retention by session class.
 
 Built for developers and AI coding agents: the scaffolding, the storage
 wiring and the agent-facing docs are already done, so you start on your
 app's own features instead of rebuilding the same shell. Storage is
-**[Backblaze B2](https://www.backblaze.com/sign-up/ai-cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-oss-start)**, integrated through the S3-compatible API.
+**[Backblaze B2](https://www.backblaze.com/sign-up/ai-cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-livekit-agent-session-archive)**, integrated through the S3-compatible API.
 
 **What you get out of the box:**
-- Full-stack dashboard UI (Next.js 16, React 19, Tailwind v4, shadcn/ui, TanStack Query, Recharts)
-- File Upload — drag-and-drop upload with real-time progress
-- File Browser — list, preview, download, delete files
-- Dashboard — stats cards, upload chart, recent uploads
-- Metadata Extraction — image dimensions, EXIF, PDF info, checksums
+- Full-stack dashboard UI (Next.js 16, React 19, Tailwind v4, shadcn/ui, TanStack Query, livekit-client)
+- Session Recording — create a room, dispatch the test agent, and have Egress record it straight to B2
+- Session Library — browse sessions under sessions/, play recordings, edit class or label, reprocess, delete
+- Webhook Manifests — verified LiveKit webhooks, stored as evidence, keep each session manifest current
+- Transcription and Evaluation — local faster-whisper transcript, word error rate and expected-phrase check
+- Retention — keep or remove sessions by class, with a per-day report in B2
+- File Browser — list, preview, download, delete any object in the bucket
+- Dashboard — sessions by class and status, recorded minutes and bytes, last retention run
 - Settings — theme plus labelled demo preference fields
-- Backend with a strict layered architecture and structural tests (FastAPI, Python 3.12+, boto3, Pydantic v2, Pillow, pypdf)
+- Backend with a strict layered architecture and structural tests (FastAPI, Python 3.12, boto3, livekit-api, faster-whisper)
 - Agent-optimized docs — your AI coding agent can read the repo and start contributing immediately
 <!-- gen:end readme-header -->
 
 <!-- gen:begin readme-screenshots -->
-## What it looks like
 
-**Dashboard** — stats, upload activity, and recent uploads at a glance:
-
-![Dashboard view showing stat cards, upload activity chart, and recent uploads table](docs/images/b2-starterkit-dashboard1.png)
-
-**File browser** — tree view with preview, download, and delete:
-
-![File browser view showing a tree of files with hover actions](docs/images/b2-starterkit-fileview2.png)
-
-> **Deploy your own in one click** → [Deploy to Vercel](#deploying-to-vercel). One project, one origin, no CORS to wire up.
 <!-- gen:end readme-screenshots -->
+
+## What this sample shows
+
+Voice agents produce evidence you need to keep: what the agent said, what the
+caller heard, and whether the session met its script. This sample archives that
+evidence on Backblaze B2 without a hosted model or speech provider:
+
+1. A local LiveKit stack (server, Egress, Redis) runs in Docker Compose.
+2. A minimal scripted test agent speaks in a room.
+3. **LiveKit Egress writes the session recording directly to B2** with its own
+   S3-compatible uploader. The API never re-uploads a recording.
+4. When Egress finishes, a signed LiveKit webhook tells the API where the file
+   landed. The API keeps the raw webhook as evidence and updates the session's
+   `manifest.json`: location, size, duration and SHA-256 of the recording.
+5. faster-whisper (`tiny.en`, local CPU) transcribes the recording and a
+   deterministic evaluation scores it against the script.
+6. A retention job keeps or removes each session by its class (`debug`,
+   `standard`, `training`, `hold`) and writes a per-day report to B2.
+
+It is for AI engineers running LiveKit Agents who want recordings, transcripts
+and evaluation results in one durable, inexpensive, S3-compatible store, with a
+retention story.
 
 ## Quick Start
 
-You need: Node.js >= 20, pnpm >= 10, Python >= 3.12, and a free **[Backblaze B2 account](https://www.backblaze.com/sign-up/ai-cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-oss-start)**.
-
-### Start a new project
-
-**Option 1: GitHub Template (recommended)**
-
-Click the green **"Use this template"** button at the top of this repo, name your project, then:
+You need Docker (Docker Desktop, Colima or Docker Engine with Compose v2), a free
+**[Backblaze B2 account](https://www.backblaze.com/sign-up/ai-cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-livekit-agent-session-archive)**
+with a bucket and an application key, and, for the web UI, Node.js >= 20 and
+pnpm >= 10.
 
 ```bash
-git clone https://github.com/yourorg/my-cool-app.git
-cd my-cool-app
+git clone https://github.com/backblaze-b2-samples/livekit-agent-b2-session-archive.git
+cd livekit-agent-b2-session-archive
+cp .env.example .env        # then fill in the values below
+make up                     # redis, livekit, egress, agent, api; waits until healthy
+make demo                   # records one scripted session to B2, prints its manifest
 ```
 
-**Option 2: Clone and reinitialize**
+`make demo` takes about a minute: the agent speaks a five-line script, Egress
+uploads the recording when the room closes, and the API checksums, transcribes
+and evaluates it. The printed manifest ends in `"status": "processed"`.
+
+To use the UI, install the web workspace once and start it on the host:
 
 ```bash
-git clone https://github.com/backblaze-b2-samples/vibe-coding-starter-kit.git my-cool-app
-cd my-cool-app
-rm -rf .git
-git init
-git add .
-git commit -m "Initial commit from vibe-coding-starter-kit"
+pnpm install
+make web                    # http://localhost:3000, talks to the api container on :8000
 ```
 
-Either way you get a clean project with no upstream history — ready to push to your own repo and point your agent at it.
+### Credentials
 
-### Setup
-
-**1. Run setup**
-
-```bash
-pnpm run setup
-```
-
-This copies `.env.example` to `.env` only when `.env` does not already exist,
-installs workspace dependencies from `pnpm-lock.yaml`, creates
-`services/api/.venv` if missing, validates that an existing venv uses Python
-3.12+, and installs the API's committed Python 3.12 resolution from
-`services/api/requirements.lock`. It is safe to rerun and never overwrites an
-existing `.env`.
-
-> Use the `pnpm run` form: `setup` (like `doctor`) is a built-in pnpm command
-> before pnpm 11, so bare `pnpm setup` would run pnpm's own command instead of
-> this script.
-
-**2. Add your B2 credentials**
-
-Open `.env` in your editor and keep it visible. Then head to the [Backblaze B2 dashboard](https://secure.backblaze.com/b2_buckets.htm?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-oss-start) and:
+Open `.env` and fill in:
 
 <!-- gen:begin readme-credentials -->
 1. **Create a bucket** and an **application key** with `Read and Write`
    permission, then paste each value into `.env`:
-   - `B2_APPLICATION_KEY_ID` — B2 application key ID (**keyID** in the B2 console)
-   - `B2_APPLICATION_KEY` — B2 application key (**applicationKey**) — shown once at creation
+   - `B2_APPLICATION_KEY_ID` — B2 application key ID (**keyID** in the B2 console); the API passes it to Egress per request
+   - `B2_APPLICATION_KEY` — B2 application key (**applicationKey**), shown once at creation
    - `B2_BUCKET_NAME` — bucket unique name (**Bucket Unique Name** in the B2 console)
-   - `B2_REGION` — the region inside the bucket's **Endpoint** (`s3.<region>.backblazeb2.com`); the S3 endpoint is derived from it
+   - `B2_REGION` — the region inside the bucket's **Endpoint** (`s3.<region>.backblazeb2.com`); the S3 endpoint for boto3 and Egress is derived from it
+   - `LIVEKIT_API_KEY` — local LiveKit dev key shared by the server, Egress, the agent and the API; any placeholder works locally
+   - `LIVEKIT_API_SECRET` — local LiveKit dev secret (at least 32 characters); signs room tokens and webhooks
 
    B2 shows an application key once, at creation. The optional variables are
    documented in `.env.example` and in the delivery runbooks.
 <!-- gen:end readme-credentials -->
 
-> Want a walkthrough? See the docs for [creating a bucket](https://www.backblaze.com/docs/cloud-storage-create-and-manage-buckets) and [creating app keys](https://www.backblaze.com/docs/cloud-storage-create-and-manage-app-keys).
-
-**3. Run it**
-
-```bash
-pnpm dev
-```
-
-That's it. Frontend at `localhost:3000`, API at `localhost:8000`. Upload a file and see it working. Interactive API docs (Swagger UI) are at `localhost:8000/docs`, with ReDoc at `/redoc`.
-
-`pnpm dev` runs the preflight check first — it catches the common setup gotchas (wrong Node/Python version, missing venv, missing or placeholder `.env`, ports already taken) and tells you exactly how to fix each one. Run it standalone any time with `pnpm run doctor`.
+`LIVEKIT_API_KEY` and `LIVEKIT_API_SECRET` are for the local LiveKit server only.
+Pick any values (the secret must be at least 32 characters); the server, Egress,
+the agent and the API all read the same pair from `.env`. Get the B2 values from
+the [Backblaze B2 dashboard](https://secure.backblaze.com/b2_buckets.htm?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-livekit-agent-session-archive);
+see the docs for [creating a bucket](https://www.backblaze.com/docs/cloud-storage-create-and-manage-buckets)
+and [creating app keys](https://www.backblaze.com/docs/cloud-storage-create-and-manage-app-keys).
+A key restricted to one bucket with `Read and Write` is enough.
 
 ### Supported local environments
 
-Local scripts run on macOS, Linux, and WSL2 — native Windows isn't supported
-yet (the dev scripts use POSIX shell syntax), so use WSL2 on Windows. Cloud or
-sandboxed agent environments also need permission to install dependencies and to
-bind localhost ports; see
-[docs/verification.md](docs/verification.md#local-environments) for the sandbox,
-port-fallback, and IPv6 behavior.
+The Compose stack runs on Linux and macOS (amd64 and arm64 images exist for every
+service). Local scripts run on macOS, Linux and WSL2; see
+[docs/verification.md](docs/verification.md#local-environments).
+
+## Compose topology
+
+| Service | Image | Role | Host ports |
+| --- | --- | --- | --- |
+| `redis` | `redis:7.2.17-alpine` | message bus between the server and Egress | none |
+| `livekit` | `livekit/livekit-server:v1.13.11` | rooms, signaling, media; sends webhooks to the API | `7880/tcp` signal, `7881/tcp` media, `50000-50019/udp` media |
+| `egress` | `livekit/egress:v1.15.0` | records the room (audio only) and uploads to B2 | none |
+| `agent` | built from `services/agent/` | LiveKit Agents worker that speaks the script | none |
+| `api` | built from `services/api/` | REST API, webhook receiver, transcription, retention | `8000/tcp` |
+
+All five share one bridge network. The server config is
+[`infra/livekit/livekit.yaml`](infra/livekit/livekit.yaml); keys come from `.env`
+as environment variables, never from the file. Egress gets its config through
+`EGRESS_CONFIG_BODY` (reference copy in
+[`infra/livekit/egress.yaml`](infra/livekit/egress.yaml)) and holds **no B2
+credentials**: each recording request the API sends carries its own
+`S3Upload`, so where recordings go is decided in audited Python code. Networking
+details, including browser join from the host, are in
+[infra/livekit/README.md](infra/livekit/README.md).
+
+## How a session flows
+
+```
+POST /api/sessions
+  -> create room s-<YYYYMMDD>-<6 hex>
+  -> write manifest.json (status: recording)        # before anything records
+  -> dispatch the test agent
+  -> start audio-only room composite Egress
+        filepath = <ARCHIVE_PREFIX>sessions/<date>/<room>/recording.ogg
+        s3 = S3Upload(endpoint=https://s3.<B2_REGION>.backblazeb2.com, ...)
+agent speaks the script, then deletes the room
+Egress uploads recording.ogg to B2 and ends
+LiveKit -> POST /api/webhooks/livekit (signed)       # egress_started, egress_ended
+  -> verify signature on the raw body, dedupe by event id
+  -> store webhooks/<event_id>.json, update manifest (status: recorded)
+  -> background: head_object size check, streamed SHA-256,
+     faster-whisper transcript, evaluation (status: processed)
+```
+
+### B2 layout
+
+```
+<ARCHIVE_PREFIX>sessions/<YYYY-MM-DD>/<room>/recording.ogg     # written by Egress
+<ARCHIVE_PREFIX>sessions/<YYYY-MM-DD>/<room>/manifest.json     # written at session start, updated after
+<ARCHIVE_PREFIX>sessions/<YYYY-MM-DD>/<room>/transcript.json
+<ARCHIVE_PREFIX>sessions/<YYYY-MM-DD>/<room>/evaluation.json
+<ARCHIVE_PREFIX>sessions/<YYYY-MM-DD>/<room>/webhooks/<event_id>.json   # raw verified webhook evidence
+<ARCHIVE_PREFIX>reports/<YYYY-MM-DD>.json                      # retention report
+```
+
+`ARCHIVE_PREFIX` is empty by default. The `/files` page browses the whole bucket;
+`/sessions` is scoped to `sessions/`.
+
+### Manifest
+
+Every session has one from the moment it is created. Retention never deletes it.
+
+```json
+{
+  "schema_version": 1,
+  "session_id": "s-20261119-a1b2c3",
+  "date": "2026-11-19",
+  "session_class": "standard",
+  "script_id": "support-handoff",
+  "mode": "scripted",
+  "label": "",
+  "status": "processed",
+  "created_at": "2026-11-19T09:00:00Z",
+  "error": null,
+  "egress": {
+    "egress_id": "EG_xxxxxxxx",
+    "status": "EGRESS_COMPLETE",
+    "started_at": "2026-11-19T09:00:02Z",
+    "ended_at": "2026-11-19T09:00:24Z",
+    "error": null,
+    "webhook": {
+      "event_id": "EV_xxxxxxxx",
+      "event": "egress_ended",
+      "received_at": "2026-11-19T09:00:25Z",
+      "evidence_key": "sessions/2026-11-19/s-20261119-a1b2c3/webhooks/EV_xxxxxxxx.json"
+    }
+  },
+  "recording": {
+    "key": "sessions/2026-11-19/s-20261119-a1b2c3/recording.ogg",
+    "location": "https://s3.<region>.backblazeb2.com/<bucket>/sessions/2026-11-19/s-20261119-a1b2c3/recording.ogg",
+    "filename": "sessions/2026-11-19/s-20261119-a1b2c3/recording.ogg",
+    "size_bytes": 182344,
+    "duration_s": 21.4,
+    "sha256": "<64 hex>",
+    "etag": "<etag>",
+    "content_type": "audio/ogg"
+  },
+  "transcription": { "key": ".../transcript.json", "model": "faster-whisper tiny.en", "device": "cpu", "language": "en", "word_count": 58 },
+  "evaluation": { "key": ".../evaluation.json", "wer": 0.12, "expected_phrases_found": 4, "expected_phrases_total": 4, "passed": true },
+  "retention": { "session_class": "standard", "retain_days": 30, "retain_until": "2026-12-19T09:00:24Z", "removed_at": null }
+}
+```
+
+`duration_s` comes from Egress `file_results[0].duration` (int64 nanoseconds,
+serialized as a string in protobuf JSON). The size is cross-checked with
+`head_object`.
+
+### Retention classes
+
+| Class | Kept for | Override |
+| --- | --- | --- |
+| `debug` | 1 day | `RETENTION_DAYS_DEBUG` |
+| `standard` | 30 days | `RETENTION_DAYS_STANDARD` |
+| `training` | 365 days | `RETENTION_DAYS_TRAINING` |
+| `hold` | indefinitely | none |
+
+Days count from the end of the recording. A session is removed when its
+`retain_until` falls on or before the as-of date (UTC). Removal deletes **every
+version** of the recording, transcript and evaluation (`list_object_versions` +
+`delete_object(VersionId=...)`), so the bytes are gone rather than hidden behind
+a delete marker, then marks the manifest `expired` with `retention.removed_at`.
+The manifest and webhook evidence stay. Run it from `/retention`, from the API,
+or with:
+
+```bash
+make retention                    # dry run as of today
+make retention AS_OF=2026-12-31   # dry run as of a date
+make retention-apply              # delete and write reports/<date>.json
+```
+
+## Tests
+
+`pnpm verify` is the credential-free gate (no Docker, no B2, no model). It
+breaks down into `pnpm check:agent-docs`, `pnpm verify:api` (ruff, pytest,
+structural tests) and `pnpm verify:web` (generator drift, ESLint, Vitest,
+typecheck, Next.js build). The API tests sign real LiveKit webhook tokens with
+`livekit-api` and assert a tampered body is rejected, and cover dedupe,
+nanosecond conversion, retention decisions per class, the Egress request
+(endpoint from `B2_REGION`, literal file path under `ARCHIVE_PREFIX`) and WER.
+
+`make test` is the live suite. It needs `.env` with B2 credentials and Docker. It
+restarts the stack with `ARCHIVE_PREFIX=e2e/<run-id>/`, creates one scripted
+session, waits for `processed`, and asserts:
+
+- the webhook was delivered (`egress.webhook` in the manifest, evidence object in B2);
+- the recording exists at the manifest's key and the webhook location points at it;
+- the SHA-256 of the downloaded object equals the manifest's;
+- `size_bytes` equals `head_object`;
+- the duration measured by decoding the file with PyAV is within 1.0 s of `duration_s`;
+- the transcript and evaluation exist and the evaluation passed;
+- retention: fixture sessions for all four classes with backdated end times are
+  removed or kept as expected, removed ones keep an `expired` manifest, and
+  `reports/<date>.json` matches the run.
+
+It then deletes every version under `e2e/<run-id>/`.
+
+### Human validation
+
+Two checks need a person:
+
+1. **Join a room.** Create an `interactive` session on `/sessions/new`, click
+   "Join with microphone" on its page, talk for a few seconds, then leave.
+2. **Play the recording.** When the session shows `processed`, press play on its
+   page; you should hear the agent (and you, for an interactive session).
+
+## B2 standards evidence
+
+| Standard | Evidence |
+| --- | --- |
+| S3-compatible API, no b2-native calls | boto3 only, in `services/api/app/repo/`; Egress uses its built-in S3 uploader |
+| Custom user agent on every S3 client the sample constructs | `services/api/app/repo/b2_client.py` sets `Config(user_agent_extra="b2ai-livekit-agent-session-archive")` on the one cached boto3 client. Egress's Go uploader (inside the `livekit/egress` image) exposes no user-agent or custom-header option: the `S3Upload` proto has `access_key`, `secret`, `session_token`, `assume_role_*`, `region`, `endpoint`, `bucket`, `force_path_style`, `metadata`, `tagging`, `content_disposition` and `proxy` only. The sample therefore tags each recording with object metadata `x-amz-meta-source: b2ai-livekit-agent-session-archive` (`services/api/app/repo/livekit_api.py`, `build_s3_upload`). |
+| Standard env names | `.env.example` declares `B2_APPLICATION_KEY_ID`, `B2_APPLICATION_KEY`, `B2_BUCKET_NAME`, `B2_REGION`, `B2_PUBLIC_URL_BASE` |
+| No hardcoded region | the endpoint is `https://s3.{B2_REGION}.backblazeb2.com` in `services/api/app/config/settings.py` (`endpoint_url`), used by boto3 and by every Egress request |
+| UTM on Backblaze links | every backblaze.com link carries `utm_content=b2ai-livekit-agent-session-archive` |
+
+`/b2-doctor .` on this scaffold (2026-11-19):
+
+```
+b2_native          PASS  no b2-native calls
+custom_ua          PASS  1 boto3 client (services/api/app/repo/b2_client.py:41), user_agent_extra set
+env_names          PASS  the five B2_* names in .env.example
+env_alias          PASS  no AWS_* / B2_S3_* aliases
+hardcoded_region   PASS  endpoint derived from B2_REGION
+utm                PASS  every backblaze.com CTA carries utm_content=b2ai-livekit-agent-session-archive
+secret_regex       PASS  no credential-shaped strings
+env_undeclared     WARN  API_PORT, ARCHIVE_API_URL, RUN_LIVE_B2_TESTS, RUN_LIVE_SESSION_TESTS,
+                         VERIFY_BASE_URL, WAIT_READY_TIMEOUT (dev tooling and live-test switches)
+review             NOTE  Egress's built-in uploader cannot carry a user agent (see above)
+```
+
+## Pinned versions
+
+| Component | Pin | Where |
+| --- | --- | --- |
+| LiveKit server | `livekit/livekit-server:v1.13.11` | `docker-compose.yml` |
+| LiveKit Egress | `livekit/egress:v1.15.0` | `docker-compose.yml` |
+| Redis | `redis:7.2.17-alpine` | `docker-compose.yml` |
+| `livekit-agents` | `1.8.10` (pins `livekit==1.1.21`) | `services/agent/requirements.txt` |
+| `livekit-api` | `1.2.2` | `services/agent/requirements.txt`, `services/api/requirements.lock` |
+| `faster-whisper` | `1.2.1`, model `tiny.en` | `services/api/requirements-ml.txt` |
+| `av` (PyAV) | `19.0.2` | `services/api/requirements-ml.txt` |
+| `livekit-client` | `2.23.0` | `apps/web/package.json` |
+
+Egress v1.15.0 includes the storage-library change that sends AWS SDK request
+checksums only "when required" for non-AWS endpoints, which third-party S3
+stores need, and records audio-only room composites through the SDK source
+(no Chrome).
+
+## Deployment
+
+This sample runs as Docker Compose on your machine (`make up`). It needs
+long-lived LiveKit, Egress and Redis containers, so it ships no serverless
+deployment target.
+
+<!-- gen:begin readme-deploy-button -->
+_This app does not ship a one-click deploy button._
+<!-- gen:end readme-deploy-button -->
 
 ## When to use
 
-Use this repository as a template or sample implementation when you want to
-clone or fork a working file-management dashboard, connect it to your own B2
-bucket, and then rebrand and extend it for your application. It provides
-production-minded engineering controls—including strict architecture,
-contract checks, tests, linting, and deployment runbooks—so you can begin with
-a dependable scaffold instead of a blank prototype.
+- You run LiveKit Agents and need every session's recording, transcript and
+  evaluation in one place you can query, keep and delete by policy.
+- You want Egress to write straight to S3-compatible storage and want a working,
+  tested configuration for B2.
+- You want a starting point for regression-testing an agent: same script, every
+  run scored the same way.
 
 ## When not to use
 
-Do not choose this repository expecting a complete hosted SaaS product or a
-drop-in production service. It does not provide managed hosting, user accounts,
-authentication, tenant isolation, billing, or on-call operations. Before using
-an adapted application in production, you own its product-specific security,
-operations, capacity, compliance, and support decisions.
-
-## Why Backblaze B2?
-
-[Backblaze B2](https://www.backblaze.com/cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-oss-start) is the object storage this kit is built around — a deliberate default, not just a demo backend:
-
-- **S3-compatible API.** B2 speaks the S3 API, so the `boto3` calls, SDKs, and tooling you already use for AWS S3 work unchanged — you just point them at B2's endpoint. This kit uses the S3-compatible API throughout (isolated in `services/api/app/repo/`), so nothing is locked to a proprietary client.
-- **Built for data-heavy apps.** B2 storage runs at a fraction of hyperscaler pricing with generous free egress to many CDN and compute partners — what you want when an AI app accumulates uploads, datasets, model artifacts, and generated media.
-- **Free to start.** A [free B2 account](https://www.backblaze.com/sign-up/ai-cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-oss-start) is enough to run everything in this repo.
-
-## Building Your App
-
-When you adapt this kit for a new app, keep the shared scaffolding and only swap out what's app-specific:
-
-- **Keep** the UI kit (`apps/web/src/components/ui/` + design tokens in `globals.css` + `/design`).
-- **Keep** the File Explorer (`/files`) and Upload (`/upload`) pages and their sidebar nav entries — they're the reusable B2-backed surface.
-- **Adapt** the Dashboard (`/`) to your use case — replace the default stats, chart, and recent uploads with metrics that reflect what your app actually does.
-- **Rebrand** by editing a single file: `apps/web/src/lib/app-config.ts` holds the app name and description (`APP_NAME`, `APP_DESCRIPTION`). Changing them there updates the page title, sidebar, and breadcrumb everywhere — no other files to touch.
-
-Full contract and rationale: [AGENTS.md §2 — Shared Scaffolding Contract](AGENTS.md#2-shared-scaffolding-contract).
-
-## Agent-First Architecture
-
-This repo is optimized for coding agents. Use the template, point your agent at it, and start building.
-
-The structure follows the principle that **repository knowledge is the system of record**. Anything an agent can't access in-context doesn't exist — so everything it needs to reason about the codebase is versioned, co-located, and discoverable from the repo itself.
-
-### How it works
-
-**[AGENTS.md](AGENTS.md) is the single source of truth for all coding agents.** Its bounded, agent-sized entry point gives agents the repository layout, architectural invariants, commands, conventions, and pointers to deeper docs. Agent-specific files (CLAUDE.md, GEMINI.md, Copilot instructions, etc.) are thin pointers back to AGENTS.md.
-
-**Architecture is enforced mechanically, not by convention.** Layering rules, import boundaries, backend application Python file-size limits, and SDK containment are verified by structural tests and lints that run on every change. When rules are enforceable by code, agents follow them reliably.
-
-**The knowledge base is structured for progressive disclosure:**
-
-```
-AGENTS.md              Single source of truth — layout, invariants, commands, conventions
-ARCHITECTURE.md        System layout, layering rules, data flows
-docs/
-  features/            Feature docs (inputs, outputs, flows, edge cases)
-  app-workflows.md     User journeys
-  dev-workflows.md     Engineering workflows, command index, releases
-  verification.md      What each gate checks, and failure recovery
-  frontend-conventions.md  Frontend conventions and data fetching
-  SECURITY.md          Security principles
-  RELIABILITY.md       Reliability expectations
-  exec-plans/          Execution plans and tech debt tracker
-```
-
-### Key design decisions
-
-| Principle | Implementation |
-|-----------|---------------|
-| Give agents a single source of truth | AGENTS.md — bounded layout, invariants, commands, conventions |
-| Enforce invariants mechanically | Structural tests + ruff + ESLint verify boundaries |
-| DRY documentation | Each fact lives in one place; no redundant files to drift |
-| Strict layered architecture | `types -> config -> repo -> service -> runtime`, enforced by tests |
-| Prefer boring, composable libraries | stdlib logging over frameworks, Pydantic over ad-hoc validation |
-| Contain external SDKs | `boto3` only in `repo/` layer — verified by structural test |
-| Keep files agent-sized | 300-line limit for backend app Python, enforced by test |
-| Docs updated with code | Same-PR requirement prevents documentation rot |
-| Structured observability | JSON logging, `/metrics` endpoint, request tracing |
-
-This approach draws from [OpenAI's experience building with Codex](https://openai.com/index/harness-engineering/): agents work best in environments with strict boundaries, predictable structure, and progressive context disclosure.
-
-## Core Features
-
-<!-- gen:begin readme-core-features -->
-- [File Upload](docs/features/file-upload.md) — drag-and-drop upload with real-time progress
-- [File Browser](docs/features/file-browser.md) — list, preview, download, delete files
-- [Dashboard](docs/features/dashboard.md) — stats cards, upload chart, recent uploads
-- [Metadata Extraction](docs/features/metadata-extraction.md) — image dimensions, EXIF, PDF info, checksums
-- [Settings](docs/features/settings.md) — theme plus labelled demo preference fields
-<!-- gen:end readme-core-features -->
-- [Design System](docs/design-system.md) — tokens, primitives, AI elements, the blaze generating loader, and inline `ErrorState` / `EmptyState` patterns. Live preview at `/design`.
-- Inline error handling — fetch failures surface *what's wrong* (API offline, 401, 5xx) and offer a Retry, instead of silently rendering empty state.
-- Single-source config — one `.env` at the repo root powers both API and web app, validated at startup so misconfig fails fast with a readable message.
-- Centralized data layer — every fetch goes through TanStack Query hooks in `apps/web/src/lib/queries.ts`; cache invalidation is one call after a mutation. The types, route registry and query keys underneath are generated from the API contract by `pnpm gen:api`, so the client cannot drift from the backend.
-- Checked local API contract — [`docs/api/openapi.json`](docs/api/openapi.json) plus `pnpm contract:check` catch FastAPI/client route drift; it describes the template API you run, not a hosted public endpoint.
-- Structural tests — verify layering rules, import boundaries, SDK containment, and backend application Python file-size limits
-- Structured JSON logging — every request traced with `request_id` and timing
-- `/health` endpoint — B2 connectivity check
-- `/metrics` endpoint — Prometheus-format counters (request count, latency, uploads)
-- `/docs` + `/redoc` — auto-generated interactive API docs (toggle off in prod with `ENABLE_DOCS=false`)
-- Per-IP rate limiting and magic-byte upload validation — see [SECURITY.md](docs/SECURITY.md)
-
-## Tech Stack
-
-- TypeScript, Next.js 16, React 19, Tailwind v4, shadcn/ui, Recharts
-- TanStack Query — caching, dedup, retry, stale-while-revalidate for every fetch
-- Python 3.12+, FastAPI, boto3, Pydantic v2, Pillow, pypdf
-- Backblaze B2 (S3-compatible object storage)
-- pnpm workspaces (monorepo)
+- You need a production agent, telephony or call-center integration. The agent
+  here is a scripted test fixture.
+- You need compliance guarantees (legal hold, consent capture, PII redaction).
+  Retention here is a cost and hygiene policy, not a compliance control.
+- You want hosted speech-to-text or LLM evaluation. This sample is local only on
+  purpose.
 
 ## Commands
-
-The commands you reach for day to day:
 
 <!-- gen:begin readme-commands -->
 | Command | What it does |
@@ -247,39 +356,33 @@ The commands you reach for day to day:
 | `pnpm test:verify` | Run throwaway verification specs from `apps/web/e2e/verify/` against the app, with the shared browser fixtures |
 <!-- gen:end readme-commands -->
 
-`pnpm verify` is the gate to run before opening a PR. It needs
-`services/api/.venv` from `pnpm run setup`, but no B2 credentials or browser, and
-it breaks down into `pnpm verify:api` (backend lint, tests, structure),
-`pnpm verify:web` (frontend lint, unit tests, typecheck + build), and
-`pnpm check:agent-docs` (agent-doc drift).
+| Make target | What it does |
+| --- | --- |
+| `make up` / `make down` | Start (and wait for) or stop the Compose stack |
+| `make logs` | Follow every service's logs |
+| `make demo` | Record one scripted session and print its manifest |
+| `make test` | Live end-to-end suite against B2 under `e2e/<run-id>/` |
+| `make retention` / `make retention-apply` | Dry-run or apply retention (`AS_OF=YYYY-MM-DD` optional) |
+| `make web` | Run the Next.js UI on the host against the api container |
 
-For the full command reference (`dev:web`, `dev:api`, `lint`, `test:*`,
-`check:structure`, `test:e2e`, live B2 tests), see
-[docs/dev-workflows.md](docs/dev-workflows.md#commands). For worktree/parallel-run
-notes, port-fallback behavior, and slow-run recovery, see
+`pnpm verify` needs `services/api/.venv` from `pnpm run setup`, but no B2
+credentials, Docker or browser. It breaks down into `pnpm verify:api`,
+`pnpm verify:web` and `pnpm check:agent-docs`. Full reference:
+[docs/dev-workflows.md](docs/dev-workflows.md#commands) and
 [docs/verification.md](docs/verification.md).
 
-## Deploying to Vercel
+## Core Features
 
-Deploys as **one Vercel project** — the Next.js web app and FastAPI API build
-from the same repo and share one origin (web at `/`, API under `/api`), so
-there's **no CORS and no second URL to wire up**.
-
-<!-- gen:begin readme-deploy-button -->
-[![Deploy to Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fbackblaze-b2-samples%2Fvibe-coding-starter-kit&project-name=vibe-coding-starter-kit&repository-name=vibe-coding-starter-kit&demo-title=Vibe%20Coding%20Starter%20Kit&demo-description=A%20well-engineered%20full-stack%20foundation%20%E2%80%94%20dashboard%2C%20drag-and-drop%20upload%20and%20a%20file%20browser%20%E2%80%94%20with%20Backblaze%20B2%20storage%20already%20wired%20in%2C%20so%20builders%20skip%20the%20boilerplate%20loop.&demo-image=https%3A%2F%2Fraw.githubusercontent.com%2Fbackblaze-b2-samples%2Fvibe-coding-starter-kit%2Fmain%2Fdocs%2Fimages%2Fb2-starterkit-dashboard1.png&env=B2_APPLICATION_KEY_ID%2CB2_APPLICATION_KEY%2CB2_BUCKET_NAME%2CB2_REGION&envDescription=B2%20credentials%20and%20bucket&envLink=https%3A%2F%2Fgithub.com%2Fbackblaze-b2-samples%2Fvibe-coding-starter-kit%2Fblob%2Fmain%2Finfra%2Fvercel%2FREADME.md)
-<!-- gen:end readme-deploy-button -->
-
-Set your B2 credentials and bucket, and you're live. Uploads go **directly from
-the browser to B2** (presigned PUT), so Vercel's 4.5 MB payload limit doesn't
-apply — you keep the 100 MB default. Two things to know before a real deploy:
-
-- Your bucket's CORS must allow the deploy origin.
-- The deployed API is unauthenticated and bucket-wide — use a dedicated B2
-  bucket/prefix and key for any preview.
-
-Full setup — variable reference, the two-Projects alternative, security,
-preview/production, `/health` checks, and rollback — is in the
-[Vercel delivery contract](infra/vercel/README.md).
+<!-- gen:begin readme-core-features -->
+- [Session Recording](docs/features/session-recording.md) — create a room, dispatch the test agent, and have Egress record it straight to B2
+- [Session Library](docs/features/session-library.md) — browse sessions under sessions/, play recordings, edit class or label, reprocess, delete
+- [Webhook Manifests](docs/features/webhook-manifests.md) — verified LiveKit webhooks, stored as evidence, keep each session manifest current
+- [Transcription and Evaluation](docs/features/transcription-evaluation.md) — local faster-whisper transcript, word error rate and expected-phrase check
+- [Retention](docs/features/retention.md) — keep or remove sessions by class, with a per-day report in B2
+- [File Browser](docs/features/file-browser.md) — list, preview, download, delete any object in the bucket
+- [Dashboard](docs/features/dashboard.md) — sessions by class and status, recorded minutes and bytes, last retention run
+- [Settings](docs/features/settings.md) — theme plus labelled demo preference fields
+<!-- gen:end readme-core-features -->
 
 ## Documentation Map
 
@@ -288,7 +391,7 @@ preview/production, `/health` checks, and rollback — is in the
 | --- | --- |
 | [AGENTS.md](AGENTS.md) | Agent table of contents — start here |
 | [ARCHITECTURE.md](ARCHITECTURE.md) | System layout, layering, data flows |
-| [docs/features/](docs/features/) | Feature docs (file upload, file browser, dashboard, metadata extraction, settings) |
+| [docs/features/](docs/features/) | Feature docs (session recording, session library, webhook manifests, transcription and evaluation, retention, file browser, dashboard, settings) |
 | [docs/design-system.md](docs/design-system.md) | Design tokens, primitives, loader, error/empty states |
 | [docs/app-workflows.md](docs/app-workflows.md) | User journeys |
 | [docs/dev-workflows.md](docs/dev-workflows.md) | Engineering workflows, command index, releases |
@@ -297,66 +400,57 @@ preview/production, `/health` checks, and rollback — is in the
 | [docs/SECURITY.md](docs/SECURITY.md) | Security principles |
 | [docs/RELIABILITY.md](docs/RELIABILITY.md) | Reliability expectations |
 | [docs/api/openapi.json](docs/api/openapi.json) | The checked-in API contract the client seam is generated from |
-| [infra/vercel/README.md](infra/vercel/README.md) | Vercel deployment contract |
-| [infra/railway/README.md](infra/railway/README.md) | Railway delivery contract |
 | [docs/exec-plans/](docs/exec-plans/) | Execution plans, tech debt, and the sample manifest |
 <!-- gen:end readme-doc-map -->
 
 ## FAQ
 
-**What is the Vibe Coding Starter Kit?**
-An open-source, full-stack template (Next.js 16 + FastAPI) with a pre-built dashboard UI, drag-and-drop file upload, and file browser, with [Backblaze B2](https://www.backblaze.com/cloud-storage?utm_source=github&utm_medium=referral&utm_campaign=ai_artifacts&utm_content=b2ai-oss-start) cloud storage already integrated. You clone it, connect it to your own B2 bucket, then rebrand and extend it for your app.
+**Does the API ever upload the recording?**
+No. Egress uploads it with its own S3 client. The API reads it back (streamed) to
+checksum and transcribe it, and writes only the JSON documents around it.
 
-**Is it free?**
-Yes. The code is MIT-licensed (see [License](#license)), and Backblaze B2 offers a free account to get started.
+**Why does Egress get the B2 key per request instead of in its config?**
+So the destination is decided in one audited place
+(`services/api/app/repo/livekit_api.py`) and the endpoint is always derived from
+`B2_REGION`. The request travels over the private Compose network only.
 
-**Can I use it in production?**
-It's a template/sample Backblaze maintains to help developers get started with B2. Production use is possible with caution and requires your own validation — you own the product-specific security, operations, capacity, compliance, and support decisions for anything you adapt, and the repository software carries no SLA. See [When not to use](#when-not-to-use) and [Maintenance and support](#maintenance-and-support).
+**Does transcription use a GPU?**
+`WHISPER_DEVICE=auto` uses CUDA when CTranslate2 sees a GPU, otherwise CPU.
+CTranslate2 has no Apple MPS backend, so Apple Silicon runs on CPU; `tiny.en`
+transcribes a 20-second session in a few seconds on a laptop CPU.
 
-**Does it include authentication, user accounts, or multi-tenant isolation?**
-No. It does not provide managed hosting, user accounts, authentication, tenant isolation, billing, or on-call operations. Add whatever your application requires on top of the scaffold.
+**What happens if a webhook is delivered twice?**
+LiveKit retries webhooks. The API keeps recent event ids in memory and, across
+restarts, treats an event whose evidence object already exists in B2 as a
+duplicate. Either way the manifest is updated once.
 
-**Do I have to use Backblaze B2?**
-It integrates Backblaze B2 through the S3-compatible API, and B2 is the storage the kit is built around. You supply your own B2 bucket and application key during setup.
+**Can I keep a session forever?**
+Change its class to `hold` on its page. Retention never removes `hold` sessions.
 
-**Is it really built for AI coding agents?**
-Yes. [AGENTS.md](AGENTS.md) is the single source of truth for coding agents, architectural boundaries are enforced mechanically by structural tests and lints (not by convention), and the docs use progressive disclosure — so an agent can read the repo and start contributing immediately.
-
-**What's the tech stack?**
-Frontend: TypeScript, Next.js 16, React 19, Tailwind v4, shadcn/ui, TanStack Query. Backend: Python 3.12+, FastAPI, boto3, Pydantic v2. Storage: Backblaze B2 (S3-compatible). See [Tech Stack](#tech-stack).
-
-**How do I rebrand it for my own app?**
-Edit a single file — `apps/web/src/lib/app-config.ts` (`APP_NAME`, `APP_DESCRIPTION`) — and the page title, sidebar, and breadcrumb update everywhere. See [Building Your App](#building-your-app).
-
-**How do I deploy it?**
-It deploys to Vercel as a single project — the web app and FastAPI API build from the same repo and share one origin (web at `/`, API under `/api`), so there's no CORS or second URL to wire up. A Railway path is also documented. Deploying is always a human-approved action — see [Deploying to Vercel](#deploying-to-vercel).
-
-**Does it work on Windows?**
-Local scripts are supported on macOS, Linux, and WSL2. Native Windows is not supported yet — use WSL2 on Windows.
+**Is the API authenticated?**
+No. It is a local demo: anyone who can reach port 8000 can create and delete
+sessions. See [docs/SECURITY.md](docs/SECURITY.md).
 
 **Where do I get help or report bugs?**
-Report repository defects and feature requests through [GitHub Issues](https://github.com/backblaze-b2-samples/vibe-coding-starter-kit/issues). For B2 account, billing, service, or API help, use [Backblaze Support](https://www.backblaze.com/help).
+Repository issues: [GitHub Issues](https://github.com/backblaze-b2-samples/livekit-agent-b2-session-archive/issues).
+B2 account, billing or API help: [Backblaze Support](https://www.backblaze.com/help).
+
+## Licenses
+
+- This repository: MIT, see [LICENSE](LICENSE).
+- LiveKit server, Egress, Agents, `livekit-api` and `livekit-client`: Apache-2.0.
+- boto3: Apache-2.0. faster-whisper: MIT; Whisper `tiny.en` weights: MIT. PyAV: BSD-3-Clause.
+- espeak-ng: GPL-3.0, installed from the Debian package and run unmodified as a
+  separate program inside the agent image.
+- Redis 7.2: BSD-3-Clause, run unmodified (7.2 is the last BSD-licensed line).
 
 ## Maintenance and support
 
-Backblaze maintains this open-source template/sample to help developers get
-started with B2. Production use is possible with caution and requires your own
-validation. Report repository defects and feature requests through
-[GitHub Issues](https://github.com/backblaze-b2-samples/vibe-coding-starter-kit/issues);
-for B2 account, billing, service, or API help, use
-[Backblaze Support](https://www.backblaze.com/help). This template/sample is
-not covered by the Backblaze service level agreement, and no SLA is provided
-for the repository software; any B2 service or support commitments are governed
-separately by the applicable Backblaze terms and support plan.
+Backblaze maintains this open-source sample to help developers get started with
+B2. It is not covered by the Backblaze service level agreement. Report defects
+through [GitHub Issues](https://github.com/backblaze-b2-samples/livekit-agent-b2-session-archive/issues).
 
-## Contributing
+## Related repositories
 
-Start with [AGENTS.md](AGENTS.md). It's the map — everything else is discoverable from there. For local commit hooks, follow [the pre-commit workflow](docs/verification.md#pre-commit).
-
-## License
-
-MIT License - see [LICENSE](LICENSE) for details.
-
-## Related projects
-
-**Claude Agent B2 Skill** — manage Backblaze B2 from your terminal using natural language (list/search, audits, stale or large file detection, security checks, safe cleanup). Repo: [claude-skill-b2-cloud-storage](https://github.com/backblaze-b2-samples/claude-skill-b2-cloud-storage).
+- [b2-voice-ai-reference-architectures](https://github.com/backblaze-b2-samples/b2-voice-ai-reference-architectures): reference architectures for voice AI on B2.
+- [video-dubbing-b2-language-variants](https://github.com/backblaze-b2-samples/video-dubbing-b2-language-variants): speech pipelines that keep every language variant on B2.

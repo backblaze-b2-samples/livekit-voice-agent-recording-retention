@@ -90,7 +90,7 @@ async def test_detail_route_exposes_the_warning(client, monkeypatch):
     monkeypatch.setattr(files_service, "get_object_bytes", lambda key: payload)
 
     response = await client.get(
-        "/files-by-key/detail", params={"key": "uploads/huge.png"}
+        "/api/files-by-key/detail", params={"key": "uploads/huge.png"}
     )
 
     assert response.status_code == 200

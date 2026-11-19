@@ -14,7 +14,7 @@ async def test_unhandled_exception_returns_500(client, monkeypatch):
 
     monkeypatch.setattr(files_service, "list_files", explode)
 
-    response = await client.get("/files")
+    response = await client.get("/api/files")
     assert response.status_code == 500
     body = response.json()
     assert body["detail"] == "Internal server error"
@@ -39,7 +39,7 @@ async def test_unhandled_exception_500_carries_cors_headers(client, monkeypatch)
     monkeypatch.setattr(files_service, "list_files", explode)
 
     origin = "http://localhost:3000"
-    response = await client.get("/files", headers={"Origin": origin})
+    response = await client.get("/api/files", headers={"Origin": origin})
 
     assert response.status_code == 500
     assert response.json()["detail"] == "Internal server error"
@@ -49,14 +49,15 @@ async def test_unhandled_exception_500_carries_cors_headers(client, monkeypatch)
 
 @pytest.mark.asyncio
 async def test_stats_b2_failure_returns_500(client, monkeypatch):
-    """Stats endpoint returns 500 when B2 is unreachable."""
+    """The dashboard stats endpoint returns a typed 500 when B2 is unreachable."""
+    from app.service import stats as stats_service
 
     def explode():
-        raise RuntimeError("B2 stats query failed")
+        raise RuntimeError("B2 list failed")
 
-    monkeypatch.setattr(files_service, "get_upload_stats", explode)
+    monkeypatch.setattr(stats_service, "all_manifests", explode)
 
-    response = await client.get("/files/stats")
+    response = await client.get("/api/stats")
     assert response.status_code == 500
     assert response.json()["detail"] == "Internal server error"
 
@@ -66,7 +67,7 @@ async def test_download_not_found_returns_404(client, monkeypatch):
     """Download for a missing file returns 404 with detail."""
     monkeypatch.setattr(files_service, "get_file_metadata", lambda key: None)
 
-    response = await client.get("/files/uploads/missing.txt/download")
+    response = await client.get("/api/files/uploads/missing.txt/download")
     assert response.status_code == 404
     assert "not found" in response.json()["detail"].lower()
 
@@ -91,14 +92,3 @@ def test_traversal_keys_are_rejected():
     validate_key("uploads/file.txt")
     validate_key("photos/2026/vacation.jpg")
     validate_key("readme.md")
-
-
-@pytest.mark.asyncio
-async def test_upload_empty_file_returns_400(client):
-    """Presigning an empty upload returns 400 with explanation."""
-    response = await client.post(
-        "/upload/presign",
-        json={"filename": "empty.txt", "content_type": "text/plain", "size_bytes": 0},
-    )
-    assert response.status_code == 400
-    assert "empty" in response.json()["detail"].lower()

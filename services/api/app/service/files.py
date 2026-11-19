@@ -1,24 +1,18 @@
 import logging
 import re
-from collections import defaultdict
-from datetime import UTC, datetime, timedelta
 
 from app.config import settings
 from app.repo import (
     delete_file,
-    get_download_count,
     get_file_metadata,
     get_object_bytes,
     get_presigned_url,
-    get_upload_stats,
-    increment_download_count,
     list_files,
     prewarm_listing,
 )
 from app.service.metadata import extract_metadata
-from app.types import FileMetadata, FileMetadataDetail, UploadStats
+from app.types import FileMetadata, FileMetadataDetail
 from app.types.formatting import humanize_bytes
-from app.types.stats import DailyUploadCount
 
 logger = logging.getLogger(__name__)
 
@@ -81,7 +75,7 @@ def warm_listing_cache() -> None:
     """Warm the shared bucket-listing cache in the background.
 
     Called once at startup (see `main.lifespan`). Both `/files` and
-    `/files/stats` need a full listing, so warming it here moves the one
+    the dashboard stats need a full listing, so warming it here moves the one
     unavoidable slow scan off whichever page the first user happens to open.
     Never raises: a warm-up failure just means the first request pays as before.
     """
@@ -101,12 +95,6 @@ def get_files(prefix: str = "", limit: int = 100) -> list[FileMetadata]:
     files = list_files(prefix=prefix)
     files.sort(key=lambda f: f.uploaded_at, reverse=True)
     return files[:limit]
-
-
-def get_stats() -> UploadStats:
-    data = get_upload_stats()
-    data["total_downloads"] = get_download_count()
-    return UploadStats(**data)
 
 
 def get_file(key: str) -> FileMetadata:
@@ -163,41 +151,17 @@ def get_preview_url(key: str) -> str:
     must ask B2 for `Content-Disposition: inline` — with `attachment` (the
     download default) a browser downloads the file instead of painting it and
     the PDF preview pane stays blank. Opening a preview is also not a
-    user-initiated download, so it must not inflate the download counter.
+    user-initiated download.
     """
     return _presigned_url_for(key, "inline")
 
 
 def get_download_url(key: str) -> str:
-    """Return an *attachment* presigned URL and record it as a download."""
-    url = _presigned_url_for(key, "attachment")
-    increment_download_count()
-    return url
+    """Return an *attachment* presigned URL."""
+    return _presigned_url_for(key, "attachment")
 
 
 def remove_file(key: str) -> None:
     """Validate key and delete the file. Raises RuntimeError on B2 failure."""
     validate_key(key)
     delete_file(key)
-
-
-def get_upload_activity(days: int = 7) -> list[DailyUploadCount]:
-    """Return daily upload counts for the last N days."""
-    files = list_files(prefix="")
-    today = datetime.now(UTC).date()
-    cutoff = today - timedelta(days=days - 1)
-
-    counts: dict[str, int] = defaultdict(int)
-    for f in files:
-        d = f.uploaded_at.date()
-        if d >= cutoff:
-            counts[d.isoformat()] += 1
-
-    # Fill in missing days with zero
-    return [
-        DailyUploadCount(
-            date=(cutoff + timedelta(days=i)).isoformat(),
-            uploads=counts.get((cutoff + timedelta(days=i)).isoformat(), 0),
-        )
-        for i in range(days)
-    ]

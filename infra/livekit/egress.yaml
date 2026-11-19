@@ -1,0 +1,14 @@
+# LiveKit Egress config, for reference. docker-compose.yml passes this exact body
+# to the egress service as EGRESS_CONFIG_BODY, with the two ${...} values
+# interpolated from the repo-root env file. Keep the two in step.
+#
+# There are deliberately NO storage credentials here: each recording request
+# the API sends carries its own S3Upload (endpoint derived from B2_REGION), so
+# where recordings go is decided in audited Python code
+# (services/api/app/repo/livekit_api.py), not in container config.
+api_key: ${LIVEKIT_API_KEY}
+api_secret: ${LIVEKIT_API_SECRET}
+ws_url: ws://livekit:7880
+redis:
+  address: redis:6379
+log_level: info

@@ -3,7 +3,7 @@ import logging
 # NOTE: the B2-backed handlers below are intentionally sync `def`, not
 # `async def`. The whole call chain is blocking boto3, and an `async def`
 # handler runs directly on the event loop — a single slow bucket scan would
-# then stall every other request (Railway runs one worker). Starlette runs
+# then stall every other request (the api container runs one worker). Starlette runs
 # sync handlers in its threadpool, giving real concurrency for B2 I/O.
 from fastapi import APIRouter, HTTPException
 
@@ -16,17 +16,13 @@ from app.service.files import (
     get_file_detail,
     get_files,
     get_preview_url,
-    get_stats,
-    get_upload_activity,
     remove_file,
 )
 from app.types import (
-    DailyUploadCount,
     DeleteFileResponse,
     FileMetadata,
     FileMetadataDetail,
     FileUrlResponse,
-    UploadStats,
 )
 
 logger = logging.getLogger(__name__)
@@ -92,18 +88,6 @@ def list_files_endpoint(prefix: str = "", limit: int = 100):
         return get_files(prefix=prefix, limit=limit)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
-
-
-@router.get("/files/stats", response_model=UploadStats)
-def stats_endpoint():
-    return get_stats()
-
-
-@router.get("/files/stats/activity", response_model=list[DailyUploadCount])
-def upload_activity_endpoint(days: int = 7):
-    if days < 1 or days > 90:
-        raise HTTPException(status_code=400, detail="Days must be between 1 and 90")
-    return get_upload_activity(days=days)
 
 
 @router.get("/files-by-key/download", response_model=FileUrlResponse)

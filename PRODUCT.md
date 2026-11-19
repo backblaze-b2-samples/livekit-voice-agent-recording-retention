@@ -2,24 +2,26 @@
 
 ## Users
 
-AI coding agents and "vibe coders" (developers who lean on AI to move fast) who clone
-this kit as the foundation for a new full-stack app. Their context: they want to skip
-the boilerplate loop (dashboard, upload, file browser, cloud storage wiring) and go
-straight to building their app's unique features. They read the repo, keep the shared
-scaffolding, and rebrand + rewrite the dashboard for their own use case.
+AI engineers running LiveKit Agents who need every session's recording,
+transcript and evaluation in one durable, inexpensive, S3-compatible store, with a
+retention policy they can explain. Their context: they are iterating on a voice
+agent, want to replay and score sessions, and do not want a hosted model or
+speech provider in the loop for that.
 
 ## Product Purpose
 
-An engineering-grade full-stack starter kit (Next.js 16 + React 19 + Tailwind v4 +
-shadcn/ui frontend, FastAPI backend) with Backblaze B2 cloud storage integrated out of
-the box. It ships a dashboard, drag-and-drop upload, and a file browser so builders
-start from a working app, not a blank page. Success = a builder can clone it, run it,
-rebrand it via one config file, and trust every screen enough to build on top without
-first fixing it.
+A runnable reference for archiving voice-agent sessions on Backblaze B2. A local
+LiveKit stack records each session with Egress straight to B2; signed webhooks
+and local post-processing keep a per-session manifest that links the recording
+(location, size, duration, SHA-256), a faster-whisper transcript and a
+deterministic evaluation; a retention job keeps or removes sessions by class and
+reports what it did. Success = a developer runs `make up` and `make demo`, sees a
+processed session in B2 within a minute, and can adapt the pattern to their own
+agent.
 
 ## Maturity and Support Boundary
 
-This is a maintained open-source template/sample, not a complete hosted SaaS product.
+This is a maintained open-source sample, not a complete hosted SaaS product.
 It is built with production-minded controls and can be adapted for production use with
 caution, but adopters own product-specific validation, security, deployment, and
 operations. Repository defects and feature requests go through the public GitHub issue
@@ -29,17 +31,14 @@ and no SLA is provided for the repository software.
 
 ## Brand Personality
 
-Confident, precise, quietly professional. Voice is direct and free of hype ("Stop
-wiring boilerplate and start building"). The interface should feel like a modern
-developer tool — considered, calm, trustworthy — not a marketing showpiece. It is a
-**neutral foundation** that others rebrand: the design carries craft through restraint,
-not through a strong opinionated identity of its own.
+Confident, precise, quietly professional. Voice is direct and free of hype. The
+interface should feel like a developer tool for inspecting evidence: calm,
+trustworthy, every number traceable to an object in the bucket.
 
 ## Anti-references
 
 - **Generic AI/SaaS slop.** No gradient text, hero-metric templates, identical
-  icon-card grids, tracked uppercase eyebrows, or decorative glassmorphism. These are
-  the exact 2026 AI tells this kit exists to help builders avoid.
+  icon-card grids, tracked uppercase eyebrows, or decorative glassmorphism.
 - **Over-branded / loud.** No heavy brand-color drenching, decorative motion, or flashy
   effects. It is scaffolding to be rebranded, not a hero page.
 - **Toy / prototype feel.** No missing states, inconsistent components, or placeholder
@@ -49,8 +48,8 @@ not through a strong opinionated identity of its own.
 
 ## Design Principles
 
-- **Practice what you preach.** The kit itself must model the engineering quality it
-  asks agents to produce. Slop here propagates into every project built on it.
+- **Show the evidence.** Every session screen links to the objects in B2 that back
+  it: recording key, manifest, transcript, evaluation, webhook evidence.
 - **Neutral foundation, easy to rebrand.** Identity lives in tokens (`globals.css`) and
   one config file. Screens are built from the shared UI kit so a rebrand is a token
   swap, not a rewrite.

@@ -1,4 +1,4 @@
-<!-- last_verified: 2026-09-09 -->
+<!-- last_verified: 2026-11-19 -->
 # Dev Workflows
 
 Engineering workflows for this repo: the command index, the per-task checklists,
@@ -29,11 +29,34 @@ and the release process. Two companion docs carry the reference material:
 - Frontend typecheck: `pnpm typecheck`
 - Frontend lint: `pnpm lint`
 - Backend lint: `pnpm lint:api`
-- E2E: `pnpm test:e2e` (run `pnpm --filter @vibe-coding-starter-kit/web exec playwright install chromium` once first)
+- E2E: `pnpm test:e2e` (run `pnpm --filter @livekit-voice-agent-recording-retention/web exec playwright install chromium` once first)
 - App verification specs: `pnpm test:verify` (specs in the gitignored `apps/web/e2e/verify/`)
 
 What each gate checks, its prerequisites, and how to recover when one fails:
 [verification.md](verification.md).
+
+## Compose workflow
+
+The app itself runs in Docker Compose; the pnpm commands above are the offline
+development gates.
+
+- `cp .env.example .env`, then fill in the B2 values and a LiveKit key pair
+- `make up`: build and start `redis`, `livekit`, `egress`, `agent`, `api`; waits until healthy
+- `make web`: Next.js on the host at `http://localhost:3000`, pointed at the api container (`NEXT_PUBLIC_API_URL=http://localhost:8000`)
+- `make demo`: record one scripted session and print its manifest
+- `make logs`: follow every service (Egress upload errors show up here)
+- `make retention` / `make retention-apply` (`AS_OF=YYYY-MM-DD` optional)
+- `make test`: the live suite under `ARCHIVE_PREFIX=e2e/<run-id>/`
+- `make down`: stop the stack
+
+After editing API or agent code, `make up` rebuilds the changed image. LiveKit
+webhooks always target the `api` container (`http://api:8000`), so run the API
+inside Compose when you need the full recording flow.
+
+Version pins live in `docker-compose.yml` (images),
+`services/agent/requirements.txt` (exact agent resolution),
+`services/api/requirements.lock` (API) and `services/api/requirements-ml.txt`
+(model stack, Docker only). Bump them deliberately and run `make test`.
 
 ## New Feature
 

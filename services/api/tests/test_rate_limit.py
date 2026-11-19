@@ -10,7 +10,7 @@ async def test_read_requests_are_rate_limited(client, monkeypatch):
     monkeypatch.setattr(settings, "rate_limit_per_minute", 3)
 
     # /health is a read-tier GET; the 4th within the window is rejected.
-    statuses = [(await client.get("/health")).status_code for _ in range(4)]
+    statuses = [(await client.get("/api/health")).status_code for _ in range(4)]
     assert statuses == [200, 200, 200, 429]
 
 
@@ -18,8 +18,8 @@ async def test_read_requests_are_rate_limited(client, monkeypatch):
 async def test_rate_limited_response_shape(client, monkeypatch):
     monkeypatch.setattr(settings, "rate_limit_per_minute", 1)
 
-    await client.get("/health")
-    resp = await client.get("/health")
+    await client.get("/api/health")
+    resp = await client.get("/api/health")
 
     assert resp.status_code == 429
     assert "Retry-After" in resp.headers
@@ -35,9 +35,9 @@ async def test_write_tier_has_separate_budget(client, monkeypatch):
     monkeypatch.setattr(settings, "rate_limit_write_per_minute", 5)
     monkeypatch.setattr(files_service, "delete_file", lambda key: None)
 
-    await client.get("/health")
-    assert (await client.get("/health")).status_code == 429  # read budget spent
+    await client.get("/api/health")
+    assert (await client.get("/api/health")).status_code == 429  # read budget spent
 
     # Delete uses the (still-unspent) write tier, so it is not throttled.
-    resp = await client.delete("/files-by-key", params={"key": "uploads/x.txt"})
+    resp = await client.delete("/api/files-by-key", params={"key": "uploads/x.txt"})
     assert resp.status_code == 200

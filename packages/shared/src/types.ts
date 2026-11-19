@@ -15,9 +15,3 @@
  */
 export type * from "./generated/api-types";
 
-/**
- * Upload lifecycle as the browser sees it. Deliberately frontend-only: the
- * API never returns it, because "uploading" is a state that exists only
- * between the presign and the verify call.
- */
-export type FileStatus = "uploading" | "complete" | "error";

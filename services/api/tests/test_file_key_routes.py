@@ -50,7 +50,7 @@ async def test_query_metadata_route_handles_reserved_key_shapes(
 
     monkeypatch.setattr(files_service, "get_file_metadata", fake_get_file_metadata)
 
-    response = await client.get("/files-by-key/metadata", params={"key": key})
+    response = await client.get("/api/files-by-key/metadata", params={"key": key})
 
     assert response.status_code == 200
     assert response.json()["key"] == key
@@ -73,12 +73,11 @@ async def test_query_download_route_handles_reserved_key_shapes(
         ),
     )
 
-    response = await client.get("/files-by-key/download", params={"key": key})
+    response = await client.get("/api/files-by-key/download", params={"key": key})
 
     assert response.status_code == 200
     assert response.json()["url"].startswith("https://example.test/download/")
     assert presign_calls == [key]
-    assert files_service.get_download_count() == 1
 
 
 @pytest.mark.asyncio
@@ -97,12 +96,11 @@ async def test_query_preview_route_handles_reserved_key_shapes(
         ),
     )
 
-    response = await client.get("/files-by-key/preview", params={"key": key})
+    response = await client.get("/api/files-by-key/preview", params={"key": key})
 
     assert response.status_code == 200
     assert response.json()["url"].startswith("https://example.test/preview/")
     assert presign_calls == [key]
-    assert files_service.get_download_count() == 0
 
 
 @pytest.mark.asyncio
@@ -115,7 +113,7 @@ async def test_query_delete_route_handles_reserved_key_shapes(
         files_service, "delete_file", lambda requested_key: delete_calls.append(requested_key)
     )
 
-    response = await client.delete("/files-by-key", params={"key": key})
+    response = await client.delete("/api/files-by-key", params={"key": key})
 
     assert response.status_code == 200
     assert response.json() == {"deleted": True, "key": key}
@@ -126,10 +124,10 @@ async def test_query_delete_route_handles_reserved_key_shapes(
 @pytest.mark.parametrize(
     ("method", "path"),
     [
-        ("get", "/files-by-key/metadata"),
-        ("get", "/files-by-key/download"),
-        ("get", "/files-by-key/preview"),
-        ("delete", "/files-by-key"),
+        ("get", "/api/files-by-key/metadata"),
+        ("get", "/api/files-by-key/download"),
+        ("get", "/api/files-by-key/preview"),
+        ("delete", "/api/files-by-key"),
     ],
 )
 @pytest.mark.parametrize("key", INVALID_KEYS)

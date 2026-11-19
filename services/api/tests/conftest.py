@@ -74,21 +74,50 @@ def reset_shared_module_state():
     with metrics._lock:
         metrics._request_count.clear()
         metrics._request_duration_sum.clear()
-        metrics._upload_count = 0
-        metrics._upload_errors = 0
+        metrics._webhook_count = 0
+        metrics._webhook_errors = 0
     yield
     cached_get_s3_client.cache_clear()
 
 
 @pytest.fixture(autouse=True)
-def isolate_download_counter(tmp_path, monkeypatch):
-    """Redirect the persisted download counter to a temp file per test and
-    reset the in-memory counter to 0. Keeps tests hermetic and prevents
-    stray writes to services/api/data/."""
-    from app.config import settings
-    from app.repo import counter
+def reset_session_state():
+    """Webhook dedupe memory and the LiveKit health cache are module-level."""
+    from app.repo import livekit_api
+    from app.service import webhooks
 
-    counter_path = tmp_path / "download_count.json"
-    monkeypatch.setattr(settings, "download_count_file", str(counter_path))
-    monkeypatch.setattr(counter, "_count", 0)
+    webhooks._reset_state()
+    livekit_api._health_cache = None
     yield
+    webhooks._reset_state()
+
+
+@pytest.fixture
+def store(monkeypatch):
+    """In-memory stand-in for repo/session_store.py (versioned, like B2)."""
+    from app.repo import session_store
+    from tests.fakes import FakeStore
+
+    fake = FakeStore()
+    fake.install(monkeypatch, session_store)
+    return fake
+
+
+@pytest.fixture
+def livekit(monkeypatch):
+    """Records LiveKit server calls instead of making them."""
+    from app.repo import livekit_api
+    from tests.fakes import FakeLiveKit
+
+    fake = FakeLiveKit()
+    fake.install(monkeypatch, livekit_api)
+    return fake
+
+
+@pytest.fixture
+def lk_keys(monkeypatch):
+    from app.config import settings
+
+    monkeypatch.setattr(settings, "livekit_api_key", "devkey")
+    monkeypatch.setattr(settings, "livekit_api_secret", "devsecret-for-tests-only-0123456789")
+    return settings

@@ -16,8 +16,8 @@ router = APIRouter()
 _lock = Lock()
 _request_count: dict[str, int] = defaultdict(int)
 _request_duration_sum: dict[str, float] = defaultdict(float)
-_upload_count = 0
-_upload_errors = 0
+_webhook_count = 0
+_webhook_errors = 0
 
 
 def record_request(method: str, path: str, status: int, duration: float) -> None:
@@ -28,13 +28,13 @@ def record_request(method: str, path: str, status: int, duration: float) -> None
         _request_duration_sum[key] += duration
 
 
-def record_upload(success: bool) -> None:
-    global _upload_count, _upload_errors
+def record_webhook(success: bool) -> None:
+    global _webhook_count, _webhook_errors
     with _lock:
         if success:
-            _upload_count += 1
+            _webhook_count += 1
         else:
-            _upload_errors += 1
+            _webhook_errors += 1
 
 
 @router.get("/metrics")
@@ -63,13 +63,13 @@ async def metrics():
                 f'http_request_duration_seconds{{method="{method}",path="{path}",status="{status}"}} {duration:.6f}'
             )
 
-        lines.append("# HELP uploads_total Total uploads")
-        lines.append("# TYPE uploads_total counter")
-        lines.append(f"uploads_total {_upload_count}")
+        lines.append("# HELP webhooks_total Verified LiveKit webhooks received")
+        lines.append("# TYPE webhooks_total counter")
+        lines.append(f"webhooks_total {_webhook_count}")
 
-        lines.append("# HELP upload_errors_total Total upload errors")
-        lines.append("# TYPE upload_errors_total counter")
-        lines.append(f"upload_errors_total {_upload_errors}")
+        lines.append("# HELP webhook_errors_total Rejected LiveKit webhooks")
+        lines.append("# TYPE webhook_errors_total counter")
+        lines.append(f"webhook_errors_total {_webhook_errors}")
 
     return Response(content="\n".join(lines) + "\n", media_type="text/plain")
 

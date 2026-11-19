@@ -49,9 +49,12 @@ const OPENAPI_METHODS = new Set<RouteMethod>([
   "trace",
 ]);
 
-// Prometheus metrics are intentionally scraped server-side, not called by the
-// app shell. Add future backend-only operations here deliberately.
-const SERVER_ONLY_OPERATIONS = new Set(["get /metrics"]);
+// Prometheus metrics are scraped server-side and the LiveKit webhook is called
+// by the LiveKit server, never by the app shell. Add future backend-only operations here deliberately.
+const SERVER_ONLY_OPERATIONS = new Set([
+  "get /metrics",
+  "post /api/webhooks/livekit",
+]);
 
 function operationKey(method: string, path: string) {
   return `${method} ${path}`;

@@ -33,19 +33,17 @@ class Settings(BaseSettings):
     b2_region: str = ""
     b2_public_url_base: str = ""
 
-    # Slug for anything that must be namespaced per app — today the B2 CORS
-    # rule ID in scripts/setup_b2_cors.py. Python cannot import the frontend's
-    # app-config.ts, so this is the backend's declaration of the same slug:
-    # keep it equal to the package name, and derive identifiers from it rather
-    # than writing a second name a rename sweep has to know about.
-    app_slug: str = "vibe-coding-starter-kit"
+    # Slug for anything that must be namespaced per app. Python cannot import
+    # the frontend's app-config.ts, so this is the backend's declaration of the
+    # same slug: keep it equal to the package name.
+    app_slug: str = "livekit-voice-agent-recording-retention"
 
     api_port: int = 8000
     # Interactive API docs (/docs, /redoc, /openapi.json). On by default for
     # local dev and starter-kit exploration; set false to hide the full API
     # surface in production.
     enable_docs: bool = True
-    # Explicit allowlist by default — covers Next on :3000 and the
+    # Explicit allowlist by default: covers Next on :3000 and the
     # fallback :3001 it picks if 3000 is busy. Production deploys should
     # override with the exact frontend origin.
     api_cors_origins: str = "http://localhost:3000,http://localhost:3001"
@@ -55,12 +53,8 @@ class Settings(BaseSettings):
     # listing each one. NEVER ship this to production.
     api_cors_origin_regex: str = ""
 
-    # Upload limits
+    # Ceiling for the /files detail recompute, which buffers the whole object.
     max_file_size: int = 100 * 1024 * 1024  # 100MB
-    # TTL for the presigned PUT the browser uploads directly to B2 with. Long
-    # enough for a big file on a slow link, short enough that a leaked URL is a
-    # narrow, single-key, single-size window.
-    presign_upload_expiry_seconds: int = 900  # 15 minutes
 
     # Optional confinement for key-addressed reads/deletes. Empty by default so
     # the by-key routes accept any key shape (they deliberately support nested
@@ -74,8 +68,8 @@ class Settings(BaseSettings):
     # served *immediately* while a background thread refreshes them
     # (stale-while-revalidate), so only the very first scan can make a user
     # wait. Uploads and deletes invalidate the cache outright, so the app's own
-    # writes are never served stale — only bucket changes made elsewhere can lag
-    # by up to this TTL.
+    # writes are never served stale; only bucket changes made elsewhere (such as
+    # an Egress upload) can lag by up to this TTL.
     list_cache_ttl_seconds: float = 300.0
     # Scan the bucket once at startup so the first page view doesn't pay for the
     # cold scan. Set false for offline dev or when startup must not touch B2.
@@ -85,21 +79,44 @@ class Settings(BaseSettings):
     # documented in docs/RELIABILITY.md; horizontal scaling needs a shared
     # store (e.g. Redis). Writes/downloads get the tighter cap.
     rate_limit_per_minute: int = 120
-    # Covers uploads, deletes, downloads and previews — kept generous enough
-    # that a normal browsing/upload session doesn't trip it.
+    # Covers creates, deletes, downloads and previews; kept generous enough
+    # that a normal browsing session doesn't trip it.
     rate_limit_write_per_minute: int = 60
 
-    # Small durable counters (downloads, etc). Relative paths resolve against
-    # the repo root (see repo/counter.py). Point at a persistent volume in
-    # production if you care about surviving restarts.
-    #
-    # It must stay OUTSIDE services/api/: that is the directory `uvicorn
-    # --reload` watches in dev, so a counter file there means every download
-    # writes into the reloader's watch tree. Today uvicorn only restarts for
-    # `*.py`, so the writes surface as misleading "N changes detected" log noise
-    # on every download — but a single added `--reload-include` would turn a
-    # normal user action into an API restart that drops in-flight requests.
-    download_count_file: str = ".data/download_count.json"
+    # --- LiveKit (local Compose stack) ---
+    # Dev keys shared by the server, Egress, the agent and this API. They never
+    # leave the Compose network except as signed room tokens.
+    livekit_api_key: str = ""
+    livekit_api_secret: str = ""
+    # Where this API reaches the LiveKit server (inside Compose).
+    livekit_url: str = "ws://livekit:7880"
+    # Where a browser on the host reaches it (returned with join tokens).
+    livekit_public_url: str = "ws://localhost:7880"
+    # Name the agent worker registers with; dispatch is explicit.
+    agent_name: str = "session-archive-test-agent"
+    # Seconds a room stays open with nobody in it.
+    room_empty_timeout: int = 60
+
+    # --- Archive layout ---
+    # Prepended to every key this app writes. Empty by default; the live test
+    # sets e2e/<run-id>/ so a run only touches its own prefix in a shared bucket.
+    archive_prefix: str = ""
+    # Bundled conversation scripts (JSON). Relative paths resolve from the repo
+    # root; the api container mounts the agent's copy at an absolute path.
+    session_scripts_dir: str = "services/agent/scripts"
+
+    # --- Transcription and evaluation ---
+    whisper_model: str = "tiny.en"
+    # auto picks CUDA when CTranslate2 sees a GPU, else CPU (no Apple MPS
+    # backend exists in CTranslate2, so Apple Silicon runs on CPU).
+    whisper_device: str = "auto"
+    # A session passes when its word error rate is at or below this value.
+    eval_max_wer: float = 0.5
+
+    # --- Retention (days per session class; hold is never removed) ---
+    retention_days_debug: int = 1
+    retention_days_standard: int = 30
+    retention_days_training: int = 365
 
     # `extra: ignore` because the repo-root env file is shared: it also carries
     # frontend and script variables, and — after the rename to the standard B2
@@ -125,6 +142,16 @@ class Settings(BaseSettings):
         edit here rather than an environment variable.
         """
         return f"https://s3.{self.b2_region}.backblazeb2.com"
+
+    @property
+    def retention_days(self) -> dict[str, int | None]:
+        """Retain days per session class. `None` means keep indefinitely."""
+        return {
+            "debug": self.retention_days_debug,
+            "standard": self.retention_days_standard,
+            "training": self.retention_days_training,
+            "hold": None,
+        }
 
     @property
     def cors_origins(self) -> list[str]:

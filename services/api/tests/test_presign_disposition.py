@@ -111,7 +111,7 @@ def test_preview_and_download_dispositions_differ(monkeypatch):
 async def test_preview_route_uses_inline(client, monkeypatch):
     calls = _stub_metadata(monkeypatch)
     response = await client.get(
-        "/files-by-key/preview", params={"key": "uploads/report.pdf"}
+        "/api/files-by-key/preview", params={"key": "uploads/report.pdf"}
     )
     assert response.status_code == 200
     assert calls[-1]["disposition"] == "inline"
@@ -121,7 +121,7 @@ async def test_preview_route_uses_inline(client, monkeypatch):
 async def test_download_route_uses_attachment(client, monkeypatch):
     calls = _stub_metadata(monkeypatch)
     response = await client.get(
-        "/files-by-key/download", params={"key": "uploads/report.pdf"}
+        "/api/files-by-key/download", params={"key": "uploads/report.pdf"}
     )
     assert response.status_code == 200
     assert calls[-1]["disposition"] == "attachment"

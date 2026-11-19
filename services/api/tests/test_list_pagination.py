@@ -58,15 +58,6 @@ def test_list_files_follows_continuation_token(monkeypatch):
     assert client.calls == 2  # both pages fetched, not just the first
 
 
-def test_upload_stats_counts_all_pages(monkeypatch):
-    _install_fake_client(monkeypatch)
-
-    stats = b2_client.get_upload_stats()
-
-    assert stats["total_files"] == 3
-    assert stats["total_size_bytes"] == 30
-
-
 def test_empty_prefix_listing_is_cached(monkeypatch):
     client = _install_fake_client(monkeypatch)
 

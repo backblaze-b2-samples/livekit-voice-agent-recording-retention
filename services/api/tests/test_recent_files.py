@@ -35,7 +35,7 @@ async def test_recent_uploads_sorted_newest_first(client, monkeypatch):
         files_service, "list_files", lambda prefix="": fake_files
     )
 
-    response = await client.get("/files?limit=2")
+    response = await client.get("/api/files?limit=2")
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 2
@@ -57,7 +57,7 @@ async def test_limit_applied_after_sort(client, monkeypatch):
         files_service, "list_files", lambda prefix="": fake_files
     )
 
-    response = await client.get("/files?limit=5")
+    response = await client.get("/api/files?limit=5")
     assert response.status_code == 200
     data = response.json()
     assert len(data) == 5

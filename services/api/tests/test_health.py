@@ -27,13 +27,15 @@ async def test_health_reports_connectivity(
     monkeypatch.setattr(
         health_runtime, "check_connectivity", lambda: b2_connected
     )
+    monkeypatch.setattr(health_runtime, "check_livekit", lambda: False)
 
-    response = await client.get("/health")
+    response = await client.get("/api/health")
 
     assert response.status_code == 200
     assert response.json() == {
         "status": expected_status,
         "b2_connected": b2_connected,
+        "livekit_connected": False,
     }
 
 
@@ -60,4 +62,4 @@ async def test_metrics_returns_200(client):
     response = await client.get("/metrics")
     assert response.status_code == 200
     assert "http_requests_total" in response.text
-    assert "uploads_total" in response.text
+    assert "webhooks_total" in response.text

@@ -60,7 +60,15 @@ const AGENTS_LIMITS = AGENT_DOC_LIMITS;
 const BEGIN = /^<!--\s*gen:begin\s+([a-z0-9-]+)\s*-->$/;
 const END = /^<!--\s*gen:end\s+([a-z0-9-]+)\s*-->$/;
 
-const MODULES = [architecture, agentsDoc, readmeDoc, infraRunbooks].flat();
+/** Doc modules for this manifest. A delivery runbook is generated only for a
+ *  declared deployment target, so an app that ships no hosted target (for
+ *  example, Docker Compose only) carries no runbook to keep current. */
+function modulesFor(manifest) {
+  const runbooks = infraRunbooks.filter((runbook) =>
+    manifest.deployment_targets.some((target) => runbook.file === `infra/${target}/README.md`),
+  );
+  return [architecture, agentsDoc, readmeDoc, runbooks].flat();
+}
 
 function fail(message) {
   process.stderr.write(`gen:docs failed: ${message}\n`);
@@ -515,6 +523,7 @@ function main() {
   // that wrote as it went would leave the tree half-updated when a later file
   // failed its size guard — which is the kind of quiet mess this whole change
   // exists to remove.
+  const MODULES = modulesFor(manifest);
   const plan = MODULES.map((module) => {
     const { text, changed } = applyRegions(module.file, module.regions, context);
     guardSize(module.file, text);

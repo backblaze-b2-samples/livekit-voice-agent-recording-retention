@@ -28,7 +28,7 @@ async def test_key_outside_allowed_prefix_rejected(client, monkeypatch):
     monkeypatch.setattr(files_service, "get_file_metadata", _fake_metadata)
 
     resp = await client.get(
-        "/files-by-key/metadata", params={"key": "other/secret.txt"}
+        "/api/files-by-key/metadata", params={"key": "other/secret.txt"}
     )
     assert resp.status_code == 400
 
@@ -39,7 +39,7 @@ async def test_key_inside_allowed_prefix_allowed(client, monkeypatch):
     monkeypatch.setattr(files_service, "get_file_metadata", _fake_metadata)
 
     resp = await client.get(
-        "/files-by-key/metadata", params={"key": "uploads/a.txt"}
+        "/api/files-by-key/metadata", params={"key": "uploads/a.txt"}
     )
     assert resp.status_code == 200
     assert resp.json()["key"] == "uploads/a.txt"
@@ -51,6 +51,6 @@ async def test_arbitrary_key_allowed_by_default(client, monkeypatch):
     monkeypatch.setattr(files_service, "get_file_metadata", _fake_metadata)
 
     resp = await client.get(
-        "/files-by-key/metadata", params={"key": "tenant-a/reports/q1.txt"}
+        "/api/files-by-key/metadata", params={"key": "tenant-a/reports/q1.txt"}
     )
     assert resp.status_code == 200

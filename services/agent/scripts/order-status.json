@@ -1,0 +1,14 @@
+{
+  "id": "order-status",
+  "title": "Order status",
+  "description": "A very short status update, useful for quick debug sessions.",
+  "pause_s": 0.5,
+  "lines": [
+    "Your order has shipped and is on its way.",
+    "It should arrive within three business days."
+  ],
+  "expected_phrases": [
+    "order has shipped",
+    "three business days"
+  ]
+}

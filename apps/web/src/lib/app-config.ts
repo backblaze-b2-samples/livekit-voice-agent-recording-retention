@@ -1,7 +1,7 @@
 // Single source of truth for app identity. Rename here to rebrand a clone of this starter.
-export const APP_NAME = "Vibe Coding Starter Kit";
+export const APP_NAME = "LiveKit Agent Session Archive";
 export const APP_DESCRIPTION =
-  "File management dashboard template powered by Backblaze B2";
+  "Voice-agent session recordings, manifests and retention on Backblaze B2";
 
 /**
  * URL- and storage-safe form of APP_NAME ("My Sample App" -> "my-sample-app").

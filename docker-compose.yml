@@ -1,0 +1,91 @@
+# Local LiveKit session-archive stack. `make up` starts it; `make down` stops it.
+#
+#   redis    LiveKit's message bus (server <-> Egress)
+#   livekit  LiveKit server: signal 7880/tcp, media 7881/tcp + 50000-50019/udp
+#   egress   LiveKit Egress: records rooms and uploads straight to Backblaze B2
+#   agent    minimal scripted test agent (LiveKit Agents worker)
+#   api      FastAPI: REST API for the web UI, webhook receiver, post-processing
+#
+# Values come from the repo-root env file (copy .env.example). Only the API
+# holds B2 credentials; it hands Egress a per-request S3Upload over this
+# private network. Redis and Egress publish no ports.
+name: livekit-voice-agent-recording-retention
+
+services:
+  redis:
+    image: redis:7.2.17-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  livekit:
+    image: livekit/livekit-server:v1.13.11
+    command: ["--config", "/etc/livekit.yaml"]
+    environment:
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY:?set LIVEKIT_API_KEY in .env}: ${LIVEKIT_API_SECRET:?set LIVEKIT_API_SECRET in .env}"
+      LIVEKIT_WEBHOOK_API_KEY: "${LIVEKIT_API_KEY}"
+    volumes:
+      - ./infra/livekit/livekit.yaml:/etc/livekit.yaml:ro
+    ports:
+      - "7880:7880"
+      - "7881:7881"
+      - "50000-50019:50000-50019/udp"
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  egress:
+    image: livekit/egress:v1.15.0
+    # Upstream's documented run flag: Chrome-based (web/video) recordings need
+    # it for their sandbox. This sample records audio only through the SDK
+    # source, but keeps the flag so switching to video works unchanged.
+    cap_add:
+      - SYS_ADMIN
+    environment:
+      # Same body as infra/livekit/egress.yaml (kept there for reference).
+      EGRESS_CONFIG_BODY: |
+        api_key: ${LIVEKIT_API_KEY}
+        api_secret: ${LIVEKIT_API_SECRET}
+        ws_url: ws://livekit:7880
+        redis:
+          address: redis:6379
+        log_level: info
+    depends_on:
+      redis:
+        condition: service_healthy
+      livekit:
+        condition: service_started
+
+  agent:
+    build: ./services/agent
+    environment:
+      LIVEKIT_URL: ws://livekit:7880
+      LIVEKIT_API_KEY: "${LIVEKIT_API_KEY}"
+      LIVEKIT_API_SECRET: "${LIVEKIT_API_SECRET}"
+    depends_on:
+      - livekit
+
+  api:
+    build: ./services/api
+    env_file: .env
+    environment:
+      LIVEKIT_URL: ws://livekit:7880
+      LIVEKIT_PUBLIC_URL: "${LIVEKIT_PUBLIC_URL:-ws://localhost:7880}"
+      SESSION_SCRIPTS_DIR: /srv/session-scripts
+      ARCHIVE_PREFIX: "${ARCHIVE_PREFIX:-}"
+      API_CORS_ORIGIN_REGEX: "^http://localhost:[0-9]+$"
+    volumes:
+      - ./services/agent/scripts:/srv/session-scripts:ro
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    depends_on:
+      - livekit
+      - egress

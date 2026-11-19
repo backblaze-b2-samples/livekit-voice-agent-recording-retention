@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { FolderOpen, RefreshCw, Upload } from "lucide-react";
+import { FolderOpen, Mic, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -27,7 +27,6 @@ import { startBrowserDownload } from "@/lib/browser-download";
 import {
   useDeleteFile,
   useDownloadUrl,
-  useFileStats,
   useFiles,
 } from "@/lib/queries";
 import { buildFileTree, initialExpandedPaths } from "@/lib/file-tree";
@@ -36,7 +35,7 @@ import {
   fileListTruncationNotice,
 } from "@/lib/file-list-limit";
 import { ancestorPaths, takePreviewKeyFromUrl } from "@/lib/preview-deep-link";
-import type { FileMetadata } from "@vibe-coding-starter-kit/shared";
+import type { FileMetadata } from "@livekit-voice-agent-recording-retention/shared";
 
 export function FileBrowser() {
   const {
@@ -46,8 +45,6 @@ export function FileBrowser() {
     error,
     refetch,
   } = useFiles("", FILE_LIST_LIMIT);
-  // Only used to say how much of the bucket this page is *not* showing.
-  const { data: stats } = useFileStats();
   const deleteMutation = useDeleteFile();
   const downloadMutation = useDownloadUrl();
   const downloadingKey = downloadMutation.isPending
@@ -152,7 +149,7 @@ export function FileBrowser() {
 
   const truncationNotice = fileListTruncationNotice(
     files.length,
-    stats?.total_files,
+    undefined,
     FILE_LIST_LIMIT,
   );
 
@@ -200,12 +197,12 @@ export function FileBrowser() {
             <EmptyState
               icon={FolderOpen}
               title="This bucket is empty"
-              description="Upload some files to see them listed here."
+              description="Record a session and its recording, manifest and derivatives land here."
               action={
                 <Button asChild size="sm">
-                  <Link href="/upload">
-                    <Upload aria-hidden="true" className="h-3.5 w-3.5" />
-                    Upload files
+                  <Link href="/sessions/new">
+                    <Mic aria-hidden="true" className="h-3.5 w-3.5" />
+                    Record a session
                   </Link>
                 </Button>
               }

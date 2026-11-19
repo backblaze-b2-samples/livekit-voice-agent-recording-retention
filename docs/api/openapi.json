@@ -1,23 +1,123 @@
 {
   "components": {
     "schemas": {
-      "DailyUploadCount": {
-        "description": "One day's upload count, for the dashboard activity chart.",
+      "ArchiveStats": {
+        "description": "Dashboard figures, computed from the session manifests in B2.",
         "properties": {
-          "date": {
-            "title": "Date",
+          "by_class": {
+            "items": {
+              "$ref": "#/components/schemas/CountBucket"
+            },
+            "title": "By Class",
+            "type": "array"
+          },
+          "by_status": {
+            "items": {
+              "$ref": "#/components/schemas/CountBucket"
+            },
+            "title": "By Status",
+            "type": "array"
+          },
+          "last_report": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RetentionReportSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "passed_evaluations": {
+            "title": "Passed Evaluations",
+            "type": "integer"
+          },
+          "recent_sessions": {
+            "items": {
+              "$ref": "#/components/schemas/SessionSummary"
+            },
+            "title": "Recent Sessions",
+            "type": "array"
+          },
+          "recorded_bytes": {
+            "title": "Recorded Bytes",
+            "type": "integer"
+          },
+          "recorded_bytes_human": {
+            "title": "Recorded Bytes Human",
             "type": "string"
           },
-          "uploads": {
-            "title": "Uploads",
+          "recorded_seconds": {
+            "title": "Recorded Seconds",
+            "type": "number"
+          },
+          "total_sessions": {
+            "title": "Total Sessions",
             "type": "integer"
           }
         },
         "required": [
-          "date",
-          "uploads"
+          "total_sessions",
+          "by_class",
+          "by_status",
+          "recorded_seconds",
+          "recorded_bytes",
+          "recorded_bytes_human",
+          "passed_evaluations",
+          "last_report",
+          "recent_sessions"
         ],
-        "title": "DailyUploadCount",
+        "title": "ArchiveStats",
+        "type": "object"
+      },
+      "ClassPolicy": {
+        "properties": {
+          "retain_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null means keep indefinitely.",
+            "title": "Retain Days"
+          },
+          "session_class": {
+            "enum": [
+              "debug",
+              "standard",
+              "training",
+              "hold"
+            ],
+            "title": "Session Class",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_class",
+          "retain_days"
+        ],
+        "title": "ClassPolicy",
+        "type": "object"
+      },
+      "CountBucket": {
+        "properties": {
+          "count": {
+            "title": "Count",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "count"
+        ],
+        "title": "CountBucket",
         "type": "object"
       },
       "DeleteFileResponse": {
@@ -37,6 +137,189 @@
           "key"
         ],
         "title": "DeleteFileResponse",
+        "type": "object"
+      },
+      "EgressState": {
+        "properties": {
+          "egress_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Egress Id"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "LiveKit EgressStatus name.",
+            "title": "Status"
+          },
+          "webhook": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WebhookRef"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "egress_id",
+          "status",
+          "started_at",
+          "ended_at",
+          "error",
+          "webhook"
+        ],
+        "title": "EgressState",
+        "type": "object"
+      },
+      "Evaluation": {
+        "description": "`evaluation.json`: deterministic score of the transcript against the script.",
+        "properties": {
+          "expected_phrases": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Expected Phrases",
+            "type": "array"
+          },
+          "hypothesis_text": {
+            "title": "Hypothesis Text",
+            "type": "string"
+          },
+          "max_wer": {
+            "title": "Max Wer",
+            "type": "number"
+          },
+          "passed": {
+            "title": "Passed",
+            "type": "boolean"
+          },
+          "phrases_found": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Phrases Found",
+            "type": "array"
+          },
+          "phrases_missing": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Phrases Missing",
+            "type": "array"
+          },
+          "reference_text": {
+            "title": "Reference Text",
+            "type": "string"
+          },
+          "script_id": {
+            "title": "Script Id",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "wer": {
+            "title": "Wer",
+            "type": "number"
+          }
+        },
+        "required": [
+          "session_id",
+          "script_id",
+          "reference_text",
+          "hypothesis_text",
+          "wer",
+          "max_wer",
+          "expected_phrases",
+          "phrases_found",
+          "phrases_missing",
+          "passed"
+        ],
+        "title": "Evaluation",
+        "type": "object"
+      },
+      "EvaluationInfo": {
+        "properties": {
+          "expected_phrases_found": {
+            "title": "Expected Phrases Found",
+            "type": "integer"
+          },
+          "expected_phrases_total": {
+            "title": "Expected Phrases Total",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "passed": {
+            "title": "Passed",
+            "type": "boolean"
+          },
+          "wer": {
+            "title": "Wer",
+            "type": "number"
+          }
+        },
+        "required": [
+          "key",
+          "wer",
+          "expected_phrases_found",
+          "expected_phrases_total",
+          "passed"
+        ],
+        "title": "EvaluationInfo",
         "type": "object"
       },
       "FileMetadata": {
@@ -280,71 +563,6 @@
         "title": "FileMetadataDetail",
         "type": "object"
       },
-      "FileUploadResponse": {
-        "description": "The stored object as `POST /upload/verify` reports it back.",
-        "properties": {
-          "content_type": {
-            "title": "Content Type",
-            "type": "string"
-          },
-          "filename": {
-            "title": "Filename",
-            "type": "string"
-          },
-          "key": {
-            "title": "Key",
-            "type": "string"
-          },
-          "metadata": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/FileMetadataDetail"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Rich metadata, when extraction succeeded for this type."
-          },
-          "size_bytes": {
-            "title": "Size Bytes",
-            "type": "integer"
-          },
-          "size_human": {
-            "title": "Size Human",
-            "type": "string"
-          },
-          "uploaded_at": {
-            "format": "date-time",
-            "title": "Uploaded At",
-            "type": "string"
-          },
-          "url": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "description": "Public object URL when the bucket is public, else null.",
-            "title": "Url"
-          }
-        },
-        "required": [
-          "key",
-          "filename",
-          "size_bytes",
-          "size_human",
-          "content_type",
-          "uploaded_at",
-          "url",
-          "metadata"
-        ],
-        "title": "FileUploadResponse",
-        "type": "object"
-      },
       "FileUrlResponse": {
         "description": "A short-lived presigned GET for downloading or previewing one object.",
         "properties": {
@@ -374,11 +592,16 @@
         "type": "object"
       },
       "HealthStatus": {
-        "description": "Liveness plus B2 reachability.\n\nThe route answers HTTP 200 even when B2 is unreachable, so a caller must\nread `b2_connected` rather than trusting the status code.",
+        "description": "Liveness plus B2 and LiveKit reachability.\n\nThe route answers HTTP 200 even when a dependency is unreachable, so a\ncaller must read the flags rather than trusting the status code.",
         "properties": {
           "b2_connected": {
             "description": "True when the bucket answered a cheap head request.",
             "title": "B2 Connected",
+            "type": "boolean"
+          },
+          "livekit_connected": {
+            "description": "True when the LiveKit server answered a room list request.",
+            "title": "Livekit Connected",
             "type": "boolean"
           },
           "status": {
@@ -389,60 +612,20 @@
         },
         "required": [
           "status",
-          "b2_connected"
+          "b2_connected",
+          "livekit_connected"
         ],
         "title": "HealthStatus",
         "type": "object"
       },
-      "PresignUploadRequest": {
-        "description": "What the browser declares before uploading directly to B2.",
+      "JoinToken": {
         "properties": {
-          "content_type": {
-            "title": "Content Type",
+          "room": {
+            "title": "Room",
             "type": "string"
           },
-          "filename": {
-            "title": "Filename",
-            "type": "string"
-          },
-          "size_bytes": {
-            "title": "Size Bytes",
-            "type": "integer"
-          }
-        },
-        "required": [
-          "filename",
-          "content_type",
-          "size_bytes"
-        ],
-        "title": "PresignUploadRequest",
-        "type": "object"
-      },
-      "PresignUploadResponse": {
-        "description": "A short-lived presigned PUT the browser uploads to, plus the exact\nheaders it must send. `Content-Length` and `content-type` are signed into\nthe URL, so B2 rejects a body of any other size or type.",
-        "properties": {
-          "content_type": {
-            "title": "Content Type",
-            "type": "string"
-          },
-          "expires_in": {
-            "title": "Expires In",
-            "type": "integer"
-          },
-          "headers": {
-            "additionalProperties": {
-              "type": "string"
-            },
-            "description": "Signed into the URL, so the browser must send them verbatim \u2014 B2 answers a mismatch with 403.",
-            "title": "Headers",
-            "type": "object"
-          },
-          "key": {
-            "title": "Key",
-            "type": "string"
-          },
-          "method": {
-            "title": "Method",
+          "token": {
+            "title": "Token",
             "type": "string"
           },
           "url": {
@@ -451,48 +634,971 @@
           }
         },
         "required": [
-          "key",
           "url",
-          "method",
-          "content_type",
-          "headers",
-          "expires_in"
+          "token",
+          "room"
         ],
-        "title": "PresignUploadResponse",
+        "title": "JoinToken",
         "type": "object"
       },
-      "UploadStats": {
-        "description": "Aggregate bucket figures behind the dashboard stat cards.",
+      "JoinTokenRequest": {
         "properties": {
-          "total_downloads": {
-            "title": "Total Downloads",
-            "type": "integer"
-          },
-          "total_files": {
-            "title": "Total Files",
-            "type": "integer"
-          },
-          "total_size_bytes": {
-            "title": "Total Size Bytes",
-            "type": "integer"
-          },
-          "total_size_human": {
-            "title": "Total Size Human",
+          "identity": {
+            "maxLength": 64,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9_.-]+$",
+            "title": "Identity",
+            "type": "string"
+          }
+        },
+        "required": [
+          "identity"
+        ],
+        "title": "JoinTokenRequest",
+        "type": "object"
+      },
+      "RecordingInfo": {
+        "properties": {
+          "content_type": {
+            "default": "audio/ogg",
+            "title": "Content Type",
             "type": "string"
           },
-          "uploads_today": {
-            "title": "Uploads Today",
+          "duration_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "etag": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Etag"
+          },
+          "filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filename"
+          },
+          "key": {
+            "description": "Deterministic key Egress was told to write.",
+            "title": "Key",
+            "type": "string"
+          },
+          "location": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "file_results[0].location from Egress.",
+            "title": "Location"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          }
+        },
+        "required": [
+          "key",
+          "location",
+          "filename",
+          "size_bytes",
+          "duration_s",
+          "sha256",
+          "etag",
+          "content_type"
+        ],
+        "title": "RecordingInfo",
+        "type": "object"
+      },
+      "RetentionClassResult": {
+        "properties": {
+          "already_expired": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Already Expired",
+            "type": "array"
+          },
+          "kept": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Kept",
+            "type": "array"
+          },
+          "removed": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Removed",
+            "type": "array"
+          },
+          "retain_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retain Days"
+          },
+          "session_class": {
+            "enum": [
+              "debug",
+              "standard",
+              "training",
+              "hold"
+            ],
+            "title": "Session Class",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_class",
+          "retain_days",
+          "kept",
+          "removed",
+          "already_expired"
+        ],
+        "title": "RetentionClassResult",
+        "type": "object"
+      },
+      "RetentionInfo": {
+        "properties": {
+          "removed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Removed At"
+          },
+          "retain_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Null means keep indefinitely (hold).",
+            "title": "Retain Days"
+          },
+          "retain_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retain Until"
+          },
+          "session_class": {
+            "enum": [
+              "debug",
+              "standard",
+              "training",
+              "hold"
+            ],
+            "title": "Session Class",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_class",
+          "retain_days",
+          "retain_until",
+          "removed_at"
+        ],
+        "title": "RetentionInfo",
+        "type": "object"
+      },
+      "RetentionPolicy": {
+        "properties": {
+          "classes": {
+            "items": {
+              "$ref": "#/components/schemas/ClassPolicy"
+            },
+            "title": "Classes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "classes"
+        ],
+        "title": "RetentionPolicy",
+        "type": "object"
+      },
+      "RetentionReport": {
+        "description": "`reports/<as_of>.json`, written by an applied (non dry-run) retention run.",
+        "properties": {
+          "as_of": {
+            "format": "date",
+            "title": "As Of",
+            "type": "string"
+          },
+          "classes": {
+            "items": {
+              "$ref": "#/components/schemas/RetentionClassResult"
+            },
+            "title": "Classes",
+            "type": "array"
+          },
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "dry_run": {
+            "title": "Dry Run",
+            "type": "boolean"
+          },
+          "generated_at": {
+            "format": "date-time",
+            "title": "Generated At",
+            "type": "string"
+          },
+          "kept_total": {
+            "title": "Kept Total",
+            "type": "integer"
+          },
+          "removed_bytes": {
+            "title": "Removed Bytes",
+            "type": "integer"
+          },
+          "removed_total": {
+            "title": "Removed Total",
+            "type": "integer"
+          },
+          "report_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Where the report was written; null for a dry run.",
+            "title": "Report Key"
+          },
+          "schema_version": {
+            "default": 1,
+            "title": "Schema Version",
             "type": "integer"
           }
         },
         "required": [
-          "total_files",
-          "total_size_bytes",
-          "total_size_human",
-          "uploads_today",
-          "total_downloads"
+          "schema_version",
+          "date",
+          "as_of",
+          "generated_at",
+          "dry_run",
+          "report_key",
+          "classes",
+          "kept_total",
+          "removed_total",
+          "removed_bytes"
         ],
-        "title": "UploadStats",
+        "title": "RetentionReport",
+        "type": "object"
+      },
+      "RetentionReportList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RetentionReportSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "RetentionReportList",
+        "type": "object"
+      },
+      "RetentionReportSummary": {
+        "properties": {
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "generated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generated At"
+          },
+          "kept_total": {
+            "title": "Kept Total",
+            "type": "integer"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "removed_total": {
+            "title": "Removed Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "date",
+          "key",
+          "kept_total",
+          "removed_total",
+          "generated_at"
+        ],
+        "title": "RetentionReportSummary",
+        "type": "object"
+      },
+      "RetentionRunRequest": {
+        "properties": {
+          "as_of": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Defaults to today (UTC).",
+            "title": "As Of"
+          },
+          "dry_run": {
+            "default": true,
+            "title": "Dry Run",
+            "type": "boolean"
+          }
+        },
+        "title": "RetentionRunRequest",
+        "type": "object"
+      },
+      "ScriptInfo": {
+        "properties": {
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "expected_duration_s": {
+            "title": "Expected Duration S",
+            "type": "number"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "line_count": {
+            "title": "Line Count",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "description",
+          "line_count",
+          "expected_duration_s"
+        ],
+        "title": "ScriptInfo",
+        "type": "object"
+      },
+      "ScriptList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ScriptInfo"
+            },
+            "title": "Items",
+            "type": "array"
+          }
+        },
+        "required": [
+          "items"
+        ],
+        "title": "ScriptList",
+        "type": "object"
+      },
+      "SessionCreate": {
+        "properties": {
+          "label": {
+            "default": "",
+            "maxLength": 120,
+            "title": "Label",
+            "type": "string"
+          },
+          "mode": {
+            "default": "scripted",
+            "enum": [
+              "scripted",
+              "interactive"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "script_id": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Script Id",
+            "type": "string"
+          },
+          "session_class": {
+            "default": "debug",
+            "enum": [
+              "debug",
+              "standard",
+              "training",
+              "hold"
+            ],
+            "title": "Session Class",
+            "type": "string"
+          }
+        },
+        "required": [
+          "script_id"
+        ],
+        "title": "SessionCreate",
+        "type": "object"
+      },
+      "SessionDetail": {
+        "properties": {
+          "evaluation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Evaluation"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/SessionManifest"
+          },
+          "recording_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Presigned GET for playback, when the recording exists.",
+            "title": "Recording Url"
+          },
+          "transcript": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Transcript"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "webhooks": {
+            "items": {
+              "$ref": "#/components/schemas/WebhookEvidence"
+            },
+            "title": "Webhooks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "manifest",
+          "recording_url",
+          "transcript",
+          "evaluation",
+          "webhooks"
+        ],
+        "title": "SessionDetail",
+        "type": "object"
+      },
+      "SessionList": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SessionSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor"
+        ],
+        "title": "SessionList",
+        "type": "object"
+      },
+      "SessionManifest": {
+        "description": "`sessions/<date>/<room>/manifest.json` in B2.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "egress": {
+            "$ref": "#/components/schemas/EgressState"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "evaluation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvaluationInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "label": {
+            "default": "",
+            "title": "Label",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "scripted",
+              "interactive"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "recording": {
+            "$ref": "#/components/schemas/RecordingInfo"
+          },
+          "retention": {
+            "$ref": "#/components/schemas/RetentionInfo"
+          },
+          "schema_version": {
+            "default": 1,
+            "title": "Schema Version",
+            "type": "integer"
+          },
+          "script_id": {
+            "title": "Script Id",
+            "type": "string"
+          },
+          "session_class": {
+            "enum": [
+              "debug",
+              "standard",
+              "training",
+              "hold"
+            ],
+            "title": "Session Class",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "recording",
+              "recorded",
+              "processed",
+              "failed",
+              "expired"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "transcription": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TranscriptionInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "session_id",
+          "date",
+          "session_class",
+          "script_id",
+          "mode",
+          "label",
+          "status",
+          "created_at",
+          "error",
+          "egress",
+          "recording",
+          "transcription",
+          "evaluation",
+          "retention"
+        ],
+        "title": "SessionManifest",
+        "type": "object"
+      },
+      "SessionSummary": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "date": {
+            "title": "Date",
+            "type": "string"
+          },
+          "duration_s": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration S"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "scripted",
+              "interactive"
+            ],
+            "title": "Mode",
+            "type": "string"
+          },
+          "passed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Passed"
+          },
+          "retain_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Retain Until"
+          },
+          "script_id": {
+            "title": "Script Id",
+            "type": "string"
+          },
+          "session_class": {
+            "enum": [
+              "debug",
+              "standard",
+              "training",
+              "hold"
+            ],
+            "title": "Session Class",
+            "type": "string"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "size_bytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size Bytes"
+          },
+          "status": {
+            "enum": [
+              "recording",
+              "recorded",
+              "processed",
+              "failed",
+              "expired"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "wer": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wer"
+          }
+        },
+        "required": [
+          "session_id",
+          "date",
+          "session_class",
+          "script_id",
+          "mode",
+          "label",
+          "status",
+          "created_at",
+          "duration_s",
+          "size_bytes",
+          "wer",
+          "passed",
+          "retain_until"
+        ],
+        "title": "SessionSummary",
+        "type": "object"
+      },
+      "SessionUpdate": {
+        "properties": {
+          "label": {
+            "anyOf": [
+              {
+                "maxLength": 120,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Label"
+          },
+          "session_class": {
+            "anyOf": [
+              {
+                "enum": [
+                  "debug",
+                  "standard",
+                  "training",
+                  "hold"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Class"
+          }
+        },
+        "title": "SessionUpdate",
+        "type": "object"
+      },
+      "Transcript": {
+        "description": "`transcript.json`: what faster-whisper heard in the recording.",
+        "properties": {
+          "device": {
+            "title": "Device",
+            "type": "string"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/TranscriptSegment"
+            },
+            "title": "Segments",
+            "type": "array"
+          },
+          "session_id": {
+            "title": "Session Id",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "session_id",
+          "model",
+          "device",
+          "language",
+          "text",
+          "segments"
+        ],
+        "title": "Transcript",
+        "type": "object"
+      },
+      "TranscriptSegment": {
+        "properties": {
+          "end": {
+            "title": "End",
+            "type": "number"
+          },
+          "start": {
+            "title": "Start",
+            "type": "number"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          }
+        },
+        "required": [
+          "start",
+          "end",
+          "text"
+        ],
+        "title": "TranscriptSegment",
+        "type": "object"
+      },
+      "TranscriptionInfo": {
+        "properties": {
+          "device": {
+            "title": "Device",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "word_count": {
+            "default": 0,
+            "title": "Word Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "key",
+          "model",
+          "device",
+          "language",
+          "word_count"
+        ],
+        "title": "TranscriptionInfo",
         "type": "object"
       },
       "ValidationError": {
@@ -535,32 +1641,96 @@
         "title": "ValidationError",
         "type": "object"
       },
-      "VerifyUploadRequest": {
-        "description": "Sent after the direct PUT so the API can inspect the stored object.",
+      "WebhookAck": {
         "properties": {
+          "duplicate": {
+            "default": false,
+            "title": "Duplicate",
+            "type": "boolean"
+          },
+          "event": {
+            "title": "Event",
+            "type": "string"
+          },
+          "received": {
+            "title": "Received",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "received",
+          "event",
+          "duplicate"
+        ],
+        "title": "WebhookAck",
+        "type": "object"
+      },
+      "WebhookEvidence": {
+        "properties": {
+          "event": {
+            "title": "Event",
+            "type": "string"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "string"
+          },
           "key": {
             "title": "Key",
             "type": "string"
           }
         },
         "required": [
-          "key"
+          "key",
+          "event",
+          "event_id"
         ],
-        "title": "VerifyUploadRequest",
+        "title": "WebhookEvidence",
+        "type": "object"
+      },
+      "WebhookRef": {
+        "description": "The verified webhook that last changed this session's Egress state.",
+        "properties": {
+          "event": {
+            "title": "Event",
+            "type": "string"
+          },
+          "event_id": {
+            "title": "Event Id",
+            "type": "string"
+          },
+          "evidence_key": {
+            "description": "B2 key of the raw, verified webhook body.",
+            "title": "Evidence Key",
+            "type": "string"
+          },
+          "received_at": {
+            "format": "date-time",
+            "title": "Received At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "event_id",
+          "event",
+          "received_at",
+          "evidence_key"
+        ],
+        "title": "WebhookRef",
         "type": "object"
       }
     }
   },
   "info": {
-    "description": "Local API for the Vibe Coding Starter Kit template, providing file upload and management backed by Backblaze B2. This contract documents the template's local API, not a hosted public endpoint.",
-    "title": "Vibe Coding Starter Kit API",
+    "description": "Local API for the LiveKit Agent Session Archive: creates LiveKit rooms whose Egress recordings are written directly to Backblaze B2, receives the signed LiveKit webhooks, keeps a per-session manifest with transcription and evaluation, and applies retention by session class. This contract documents the sample's local API, not a hosted public endpoint.",
+    "title": "LiveKit Agent Session Archive API",
     "version": "0.1.0"
   },
   "openapi": "3.1.0",
   "paths": {
-    "/files": {
+    "/api/files": {
       "get": {
-        "operationId": "list_files_endpoint_files_get",
+        "operationId": "list_files_endpoint_api_files_get",
         "parameters": [
           {
             "in": "query",
@@ -591,7 +1761,7 @@
                   "items": {
                     "$ref": "#/components/schemas/FileMetadata"
                   },
-                  "title": "Response List Files Endpoint Files Get",
+                  "title": "Response List Files Endpoint Api Files Get",
                   "type": "array"
                 }
               }
@@ -615,9 +1785,9 @@
         ]
       }
     },
-    "/files-by-key": {
+    "/api/files-by-key": {
       "delete": {
-        "operationId": "delete_file_by_key_endpoint_files_by_key_delete",
+        "operationId": "delete_file_by_key_endpoint_api_files_by_key_delete",
         "parameters": [
           {
             "in": "query",
@@ -657,10 +1827,10 @@
         ]
       }
     },
-    "/files-by-key/detail": {
+    "/api/files-by-key/detail": {
       "get": {
         "description": "Rich metadata (checksums, image/PDF fields) recomputed on demand.\n\nUnlike /metadata (a cheap head_object), this downloads the object to\nre-run extraction, so it is billed at the tighter 'write' rate-limit tier\n(see runtime/ratelimit.py) to bound egress/cost amplification.",
-        "operationId": "get_file_detail_by_key_endpoint_files_by_key_detail_get",
+        "operationId": "get_file_detail_by_key_endpoint_api_files_by_key_detail_get",
         "parameters": [
           {
             "in": "query",
@@ -700,9 +1870,9 @@
         ]
       }
     },
-    "/files-by-key/download": {
+    "/api/files-by-key/download": {
       "get": {
-        "operationId": "download_file_by_key_endpoint_files_by_key_download_get",
+        "operationId": "download_file_by_key_endpoint_api_files_by_key_download_get",
         "parameters": [
           {
             "in": "query",
@@ -742,9 +1912,9 @@
         ]
       }
     },
-    "/files-by-key/metadata": {
+    "/api/files-by-key/metadata": {
       "get": {
-        "operationId": "get_file_by_key_endpoint_files_by_key_metadata_get",
+        "operationId": "get_file_by_key_endpoint_api_files_by_key_metadata_get",
         "parameters": [
           {
             "in": "query",
@@ -784,10 +1954,10 @@
         ]
       }
     },
-    "/files-by-key/preview": {
+    "/api/files-by-key/preview": {
       "get": {
         "description": "Return a presigned URL for inline preview. Does not count as a download.",
-        "operationId": "preview_file_by_key_endpoint_files_by_key_preview_get",
+        "operationId": "preview_file_by_key_endpoint_api_files_by_key_preview_get",
         "parameters": [
           {
             "in": "query",
@@ -827,77 +1997,9 @@
         ]
       }
     },
-    "/files/stats": {
-      "get": {
-        "operationId": "stats_endpoint_files_stats_get",
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/UploadStats"
-                }
-              }
-            },
-            "description": "Successful Response"
-          }
-        },
-        "summary": "Stats Endpoint",
-        "tags": [
-          "files"
-        ]
-      }
-    },
-    "/files/stats/activity": {
-      "get": {
-        "operationId": "upload_activity_endpoint_files_stats_activity_get",
-        "parameters": [
-          {
-            "in": "query",
-            "name": "days",
-            "required": false,
-            "schema": {
-              "default": 7,
-              "title": "Days",
-              "type": "integer"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "items": {
-                    "$ref": "#/components/schemas/DailyUploadCount"
-                  },
-                  "title": "Response Upload Activity Endpoint Files Stats Activity Get",
-                  "type": "array"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Upload Activity Endpoint",
-        "tags": [
-          "files"
-        ]
-      }
-    },
-    "/files/{key}": {
+    "/api/files/{key}": {
       "delete": {
-        "operationId": "delete_file_endpoint_files__key__delete",
+        "operationId": "delete_file_endpoint_api_files__key__delete",
         "parameters": [
           {
             "in": "path",
@@ -937,7 +2039,7 @@
         ]
       },
       "get": {
-        "operationId": "get_file_endpoint_files__key__get",
+        "operationId": "get_file_endpoint_api_files__key__get",
         "parameters": [
           {
             "in": "path",
@@ -977,9 +2079,9 @@
         ]
       }
     },
-    "/files/{key}/download": {
+    "/api/files/{key}/download": {
       "get": {
-        "operationId": "download_file_endpoint_files__key__download_get",
+        "operationId": "download_file_endpoint_api_files__key__download_get",
         "parameters": [
           {
             "in": "path",
@@ -1019,10 +2121,10 @@
         ]
       }
     },
-    "/files/{key}/preview": {
+    "/api/files/{key}/preview": {
       "get": {
         "description": "Return a presigned URL for inline preview. Does not count as a download.",
-        "operationId": "preview_file_endpoint_files__key__preview_get",
+        "operationId": "preview_file_endpoint_api_files__key__preview_get",
         "parameters": [
           {
             "in": "path",
@@ -1062,9 +2164,9 @@
         ]
       }
     },
-    "/health": {
+    "/api/health": {
       "get": {
-        "operationId": "health_health_get",
+        "operationId": "health_api_health_get",
         "responses": {
           "200": {
             "content": {
@@ -1080,6 +2182,576 @@
         "summary": "Health",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/api/retention/policy": {
+      "get": {
+        "operationId": "policy_endpoint_api_retention_policy_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionPolicy"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Policy Endpoint",
+        "tags": [
+          "retention"
+        ]
+      }
+    },
+    "/api/retention/reports": {
+      "get": {
+        "operationId": "list_reports_endpoint_api_retention_reports_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionReportList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Reports Endpoint",
+        "tags": [
+          "retention"
+        ]
+      }
+    },
+    "/api/retention/reports/{day}": {
+      "get": {
+        "operationId": "get_report_endpoint_api_retention_reports__day__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "day",
+            "required": true,
+            "schema": {
+              "title": "Day",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Report Endpoint",
+        "tags": [
+          "retention"
+        ]
+      }
+    },
+    "/api/retention/runs": {
+      "post": {
+        "operationId": "run_endpoint_api_retention_runs_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetentionRunRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Run Endpoint",
+        "tags": [
+          "retention"
+        ]
+      }
+    },
+    "/api/scripts": {
+      "get": {
+        "operationId": "list_scripts_endpoint_api_scripts_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScriptList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "List Scripts Endpoint",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/sessions": {
+      "get": {
+        "operationId": "list_sessions_endpoint_api_sessions_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "date",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "pattern": "^\\d{4}-\\d{2}-\\d{2}$",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date"
+            }
+          },
+          {
+            "in": "query",
+            "name": "session_class",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "debug",
+                    "standard",
+                    "training",
+                    "hold"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Class"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "recording",
+                    "recorded",
+                    "processed",
+                    "failed",
+                    "expired"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionList"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Sessions Endpoint",
+        "tags": [
+          "sessions"
+        ]
+      },
+      "post": {
+        "operationId": "create_session_endpoint_api_sessions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionManifest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Session Endpoint",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/sessions/{session_id}": {
+      "delete": {
+        "operationId": "delete_session_endpoint_api_sessions__session_id__delete",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Session Endpoint",
+        "tags": [
+          "sessions"
+        ]
+      },
+      "get": {
+        "operationId": "get_session_endpoint_api_sessions__session_id__get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Session Endpoint",
+        "tags": [
+          "sessions"
+        ]
+      },
+      "patch": {
+        "operationId": "update_session_endpoint_api_sessions__session_id__patch",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionManifest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Session Endpoint",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/sessions/{session_id}/reprocess": {
+      "post": {
+        "operationId": "reprocess_session_endpoint_api_sessions__session_id__reprocess_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionManifest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reprocess Session Endpoint",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/sessions/{session_id}/token": {
+      "post": {
+        "operationId": "join_token_endpoint_api_sessions__session_id__token_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "session_id",
+            "required": true,
+            "schema": {
+              "title": "Session Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JoinTokenRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JoinToken"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Join Token Endpoint",
+        "tags": [
+          "sessions"
+        ]
+      }
+    },
+    "/api/stats": {
+      "get": {
+        "operationId": "stats_endpoint_api_stats_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ArchiveStats"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Stats Endpoint",
+        "tags": [
+          "stats"
+        ]
+      }
+    },
+    "/api/webhooks/livekit": {
+      "post": {
+        "operationId": "livekit_webhook_api_webhooks_livekit_post",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebhookAck"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or invalid webhook signature"
+          }
+        },
+        "summary": "Livekit Webhook",
+        "tags": [
+          "webhooks"
         ]
       }
     },
@@ -1099,90 +2771,6 @@
         "summary": "Metrics",
         "tags": [
           "metrics"
-        ]
-      }
-    },
-    "/upload/presign": {
-      "post": {
-        "description": "Validate a declared upload and hand back a presigned PUT.\n\nThe browser uploads the bytes straight to B2 with the returned URL, so they\nnever traverse this Function \u2014 that is what lifts Vercel's ~4.5 MB payload\nceiling. Size and content-type are signed into the URL (see the service).",
-        "operationId": "presign_upload_upload_presign_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/PresignUploadRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/PresignUploadResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Presign Upload",
-        "tags": [
-          "upload"
-        ]
-      }
-    },
-    "/upload/verify": {
-      "post": {
-        "description": "Confirm an object just uploaded directly to B2 is valid and visible.",
-        "operationId": "verify_upload_route_upload_verify_post",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/VerifyUploadRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FileUploadResponse"
-                }
-              }
-            },
-            "description": "Successful Response"
-          },
-          "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
-          }
-        },
-        "summary": "Verify Upload Route",
-        "tags": [
-          "upload"
         ]
       }
     }

@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it } from "vitest";
-import { dropDeletedFileFromCache, qk } from "@/lib/queries";
-import type { FileMetadata } from "@vibe-coding-starter-kit/shared";
+import { dropDeletedFileFromCache, qk, sessionKey } from "@/lib/queries";
+import type { FileMetadata } from "@livekit-voice-agent-recording-retention/shared";
 
 function file(key: string): FileMetadata {
   return {
@@ -67,14 +67,14 @@ describe("dropDeletedFileFromCache", () => {
     });
   });
 
-  it("does not touch stats or activity caches", () => {
-    qc.setQueryData(qk.stats(), { total_files: 2 });
-    qc.setQueryData(qk.uploadActivity(7), [{ date: "2026-07-28", uploads: 2 }]);
+  it("does not touch the session archive caches", () => {
+    qc.setQueryData(qk.stats(), { total_sessions: 2 });
+    qc.setQueryData(sessionKey("s-20261119-a1b2c3"), { manifest: {} });
 
     dropDeletedFileFromCache(qc, "uploads/a.txt");
 
-    expect(qc.getQueryData(qk.stats())).toEqual({ total_files: 2 });
-    expect(qc.getQueryData(qk.uploadActivity(7))).toHaveLength(1);
+    expect(qc.getQueryData(qk.stats())).toEqual({ total_sessions: 2 });
+    expect(qc.getQueryData(sessionKey("s-20261119-a1b2c3"))).toEqual({ manifest: {} });
   });
 
   it("is a no-op for an unseeded cache", () => {
@@ -82,5 +82,12 @@ describe("dropDeletedFileFromCache", () => {
       dropDeletedFileFromCache(qc, "uploads/missing.txt"),
     ).not.toThrow();
     expect(qc.getQueryData(qk.files())).toBeUndefined();
+  });
+});
+
+describe("sessionKey", () => {
+  it("nests each session under the generated session-detail key", () => {
+    expect(sessionKey("s-1").slice(0, qk.session().length)).toEqual([...qk.session()]);
+    expect(sessionKey("s-1")).not.toEqual(sessionKey("s-2"));
   });
 });

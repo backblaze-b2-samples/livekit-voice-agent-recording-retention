@@ -8,20 +8,40 @@ import {
 } from "@tanstack/react-query";
 import {
   ApiError,
+  createSession,
   deleteFile,
+  deleteSession,
   getDownloadUrl,
   getFileDetail,
   getFiles,
-  getFileStats,
   getHealth,
+  getJoinToken,
   getPreviewUrl,
-  getUploadActivity,
+  getRetentionPolicy,
+  getRetentionReports,
+  getScripts,
+  getSession,
+  getSessions,
+  getStats,
+  reprocessSession,
+  runRetention,
+  updateSession,
+  type SessionFilters,
 } from "@/lib/api-client";
 import type {
+  ArchiveStats,
   FileMetadata,
   FileMetadataDetail,
   FileUrlResponse,
-} from "@vibe-coding-starter-kit/shared";
+  RetentionReport,
+  RetentionRunRequest,
+  SessionCreate,
+  SessionDetail,
+  SessionList,
+  SessionManifest,
+  SessionUpdate,
+} from "@livekit-voice-agent-recording-retention/shared";
+import { isSettledStatus } from "@/lib/session-format";
 import { qk } from "@/lib/generated/query-keys";
 
 // Query keys are GENERATED from the API contract (`pnpm gen:api`) and their
@@ -53,21 +73,6 @@ export function useFiles(prefix = "", limit = 100, { enabled = true }: QueryGate
     queryKey: qk.files(prefix, limit),
     queryFn: () => getFiles(prefix, limit),
     enabled,
-  });
-}
-
-export function useFileStats({ enabled = true }: QueryGate = {}) {
-  return useQuery({
-    queryKey: qk.stats(),
-    queryFn: getFileStats,
-    enabled,
-  });
-}
-
-export function useUploadActivity(days = 7) {
-  return useQuery({
-    queryKey: qk.uploadActivity(days),
-    queryFn: () => getUploadActivity(days),
   });
 }
 
@@ -137,8 +142,8 @@ export function dropDeletedFileFromCache(qc: QueryClient, fileKey: string) {
 /**
  * Fetch a download URL for one file.
  *
- * A mutation, not a query: it has a server side effect (it bumps the download
- * counter) and it must never be cached or replayed. Being a mutation is also
+ * A mutation, not a query: each call mints a fresh presigned URL that must
+ * never be cached or replayed. Being a mutation is also
  * what gives the UI an honest pending state — the old code awaited the presign
  * inside a plain click handler, so a slow round trip left the screen completely
  * unchanged and a user could not tell a working download from a dead button.
@@ -147,12 +152,8 @@ export function dropDeletedFileFromCache(qc: QueryClient, fileKey: string) {
  * `isPending` / `variables` for the pending row.
  */
 export function useDownloadUrl() {
-  const qc = useQueryClient();
   return useMutation<FileUrlResponse, ApiError, FileMetadata>({
     mutationFn: (file) => getDownloadUrl(file.key),
-    // The server counted a download, so the dashboard's "Total Downloads" is
-    // now stale. Cheap: /files/stats reads a cached bucket listing.
-    onSuccess: () => qc.invalidateQueries({ queryKey: qk.stats() }),
   });
 }
 
@@ -165,6 +166,146 @@ export function useDeleteFile() {
       // activity) against the server in the background.
       dropDeletedFileFromCache(qc, fileKey);
       qc.invalidateQueries({ queryKey: qk.all });
+    },
+  });
+}
+
+// --- Session archive ------------------------------------------------------
+
+/**
+ * Per-session cache key. The generated `qk.session()` carries no path
+ * parameter (the generator derives keys from query parameters only), so the
+ * session id is appended here; invalidating `qk.session()` still reaches every
+ * session's entry.
+ */
+export function sessionKey(sessionId: string) {
+  return [...qk.session(), sessionId] as const;
+}
+
+// Dashboard figures. Polls while the tab is open so a session recorded from
+// the CLI (`make demo`) shows up without a manual refresh.
+export function useArchiveStats() {
+  return useQuery<ArchiveStats, ApiError>({
+    queryKey: qk.stats(),
+    queryFn: getStats,
+    refetchInterval: 15_000,
+  });
+}
+
+export function useScripts() {
+  return useQuery({
+    queryKey: qk.scripts(),
+    queryFn: getScripts,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useSessions(filters: SessionFilters = {}) {
+  return useQuery<SessionList, ApiError>({
+    queryKey: qk.sessions(
+      filters.date,
+      filters.session_class,
+      filters.status,
+      filters.cursor,
+      filters.limit,
+    ),
+    queryFn: () => getSessions(filters),
+    // A recording session becomes processed on its own; keep the table honest.
+    refetchInterval: (query) =>
+      query.state.data?.items.some((s) => !isSettledStatus(s.status)) ? 5_000 : false,
+  });
+}
+
+/**
+ * One session's manifest, derivatives and a fresh presigned playback URL.
+ * Polls every 3s until the session settles (processed, failed or expired),
+ * because the webhook and post-processing update it in the background.
+ */
+export function useSession(sessionId: string | undefined) {
+  return useQuery<SessionDetail, ApiError>({
+    queryKey: sessionKey(sessionId ?? ""),
+    queryFn: () => getSession(sessionId as string),
+    enabled: !!sessionId,
+    refetchInterval: (query) => {
+      const status = query.state.data?.manifest.status;
+      return status && isSettledStatus(status) ? false : 3_000;
+    },
+  });
+}
+
+function invalidateArchive(qc: QueryClient) {
+  qc.invalidateQueries({ queryKey: [...qk.all, "sessions"] });
+  qc.invalidateQueries({ queryKey: qk.stats() });
+  // The bucket explorer lists the same objects.
+  qc.invalidateQueries({ queryKey: [...qk.all, "files"] });
+}
+
+export function useCreateSession() {
+  const qc = useQueryClient();
+  return useMutation<SessionManifest, ApiError, SessionCreate>({
+    mutationFn: createSession,
+    onSuccess: () => invalidateArchive(qc),
+  });
+}
+
+export function useUpdateSession(sessionId: string) {
+  const qc = useQueryClient();
+  return useMutation<SessionManifest, ApiError, SessionUpdate>({
+    mutationFn: (update) => updateSession(sessionId, update),
+    onSuccess: () => invalidateArchive(qc),
+  });
+}
+
+export function useDeleteSession() {
+  const qc = useQueryClient();
+  return useMutation<void, ApiError, string>({
+    mutationFn: deleteSession,
+    onSuccess: (_data, sessionId) => {
+      qc.removeQueries({ queryKey: sessionKey(sessionId) });
+      invalidateArchive(qc);
+    },
+  });
+}
+
+export function useReprocessSession(sessionId: string) {
+  const qc = useQueryClient();
+  return useMutation<SessionManifest, ApiError, void>({
+    mutationFn: () => reprocessSession(sessionId),
+    onSuccess: () => invalidateArchive(qc),
+  });
+}
+
+// A join token is single-use and short-lived: a mutation, never cached.
+export function useJoinToken(sessionId: string) {
+  return useMutation({
+    mutationFn: (identity: string) => getJoinToken(sessionId, identity),
+  });
+}
+
+export function useRetentionPolicy() {
+  return useQuery({
+    queryKey: qk.retentionPolicy(),
+    queryFn: getRetentionPolicy,
+    staleTime: 5 * 60_000,
+  });
+}
+
+export function useRetentionReports() {
+  return useQuery({
+    queryKey: qk.retentionReports(),
+    queryFn: getRetentionReports,
+  });
+}
+
+export function useRunRetention() {
+  const qc = useQueryClient();
+  return useMutation<RetentionReport, ApiError, RetentionRunRequest>({
+    mutationFn: runRetention,
+    onSuccess: (report) => {
+      if (!report.dry_run) {
+        qc.invalidateQueries({ queryKey: [...qk.all, "retention"] });
+        invalidateArchive(qc);
+      }
     },
   });
 }

@@ -3,7 +3,9 @@
 import { useRouter } from "next/navigation";
 import {
   LayoutDashboard,
-  Upload,
+  Mic,
+  AudioLines,
+  Archive,
   FolderOpen,
   Settings,
   Sparkles,
@@ -28,7 +30,7 @@ import {
   fileListTruncationNotice,
 } from "@/lib/file-list-limit";
 import { previewHref } from "@/lib/preview-deep-link";
-import { useFileStats, useFiles } from "@/lib/queries";
+import { useFiles } from "@/lib/queries";
 
 interface CommandPaletteProps {
   open: boolean;
@@ -37,7 +39,9 @@ interface CommandPaletteProps {
 
 const routes = [
   { label: "Dashboard", href: "/", icon: LayoutDashboard },
-  { label: "Upload", href: "/upload", icon: Upload },
+  { label: "Sessions", href: "/sessions", icon: AudioLines },
+  { label: "New session", href: "/sessions/new", icon: Mic },
+  { label: "Retention", href: "/retention", icon: Archive },
   { label: "Files", href: "/files", icon: FolderOpen },
   { label: "Settings", href: "/settings", icon: Settings },
   { label: "Design System", href: "/design", icon: Sparkles },
@@ -57,11 +61,10 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     data: files = [],
     isLoading: filesLoading,
   } = useFiles("", FILE_LIST_LIMIT, { enabled: open });
-  const { data: stats } = useFileStats({ enabled: open });
 
   const boundNotice = fileListTruncationNotice(
     files.length,
-    stats?.total_files,
+    undefined,
     FILE_LIST_LIMIT,
   );
 
@@ -75,7 +78,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
       <CommandInput placeholder="Search files or jump to a page..." />
       <CommandList>
         <CommandEmpty>
-          {/* On a route that never fetched the list (e.g. /upload) the query
+          {/* On a route that never fetched the list (e.g. /settings) the query
               starts cold when the palette opens, so a flat "No matches found."
               told the user their file didn't exist while it was visible on the
               page behind the dialog. Say we're still looking instead. */}

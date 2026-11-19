@@ -1,22 +1,40 @@
-<!-- last_verified: 2026-08-06 -->
+<!-- last_verified: 2026-11-19 -->
 # Architecture
 
 ## Components
 
-<!-- gen:begin arch-components -->
-A well-engineered full-stack foundation — dashboard, drag-and-drop upload and a file browser — with Backblaze B2 storage already wired in, so builders skip the boilerplate loop.
+Five Docker Compose services (`docker-compose.yml`) plus the Next.js UI on the
+host:
 
-- **apps/web/** — Next.js 16, React 19, Tailwind v4, shadcn/ui, TanStack Query, Recharts
-  - File Upload (`/upload`) — drag-and-drop upload with real-time progress
-  - File Browser (`/files`) — list, preview, download, delete files
-  - Dashboard (`/`) — stats cards, upload chart, recent uploads
+```
+browser (Next.js on :3000) --REST--> api (:8000) --boto3--> Backblaze B2
+   |  livekit-client (interactive join)    ^   \--livekit-api--> livekit (:7880)
+   v                                        |                       |   ^
+livekit (:7880, 7881, 50000-50019/udp) -----+ signed webhooks        |   | agent dispatch
+   |  redis bus                                                      v   |
+egress ------------- S3 PutObject / multipart (its own client) ---> Backblaze B2
+agent (LiveKit Agents worker, espeak-ng) -- publishes audio --> livekit
+```
+
+The application components below are generated from `docs/exec-plans/sample.json`.
+
+<!-- gen:begin arch-components -->
+Record LiveKit voice-agent sessions through Egress directly to Backblaze B2, link each recording to its transcription and evaluation in a per-session manifest, and apply retention by session class.
+
+- **apps/web/** — Next.js 16, React 19, Tailwind v4, shadcn/ui, TanStack Query, livekit-client
+  - Session Recording (`/sessions/new`) — create a room, dispatch the test agent, and have Egress record it straight to B2
+  - Session Library (`/sessions`) — browse sessions under sessions/, play recordings, edit class or label, reprocess, delete
+  - Retention (`/retention`) — keep or remove sessions by class, with a per-day report in B2
+  - File Browser (`/files`) — list, preview, download, delete any object in the bucket
+  - Dashboard (`/`) — sessions by class and status, recorded minutes and bytes, last retention run
   - Settings (`/settings`) — theme plus labelled demo preference fields
-- **services/api/** — FastAPI, Python 3.12+, boto3, Pydantic v2, Pillow, pypdf
+- **services/api/** — FastAPI, Python 3.12, boto3, livekit-api, faster-whisper
   - REST API for every operation the frontend consumes, exported to `docs/api/openapi.json`
-  - Backblaze B2 (S3-compatible API) access isolated in the `repo/` layer
-  - Metadata Extraction — image dimensions, EXIF, PDF info, checksums
+  - Backblaze B2 (S3-compatible API), written directly by LiveKit Egress access isolated in the `repo/` layer
+  - Webhook Manifests — verified LiveKit webhooks, stored as evidence, keep each session manifest current
+  - Transcription and Evaluation — local faster-whisper transcript, word error rate and expected-phrase check
   - Structured JSON logging with request tracing, plus `/health` and Prometheus `/metrics`
-- **packages/shared/** — TypeScript types generated from the API contract by `pnpm gen:api`, consumed by `apps/web/` as a workspace dependency (pnpm workspaces)
+- **packages/shared/** — TypeScript types generated from the API contract by `pnpm gen:api`, consumed by `apps/web/` as a workspace dependency (pnpm workspaces plus Docker Compose)
 <!-- gen:end arch-components -->
 
 ## Backend Layering
@@ -28,7 +46,7 @@ types/     Pydantic models — no logic, no imports from other layers
   |
 config/    Settings (pydantic-settings) — depends only on types
   |
-repo/      Data access (boto3 B2 client) — no business logic
+repo/      Adapters: boto3 B2 client, LiveKit server SDK, faster-whisper (no business logic)
   |
 service/   Business logic — calls repo, returns types
   |
@@ -39,7 +57,8 @@ runtime/   FastAPI routes — calls service, never repo directly
 
 1. Dependencies flow downward only: `types` -> `config` -> `repo` -> `service` -> `runtime`
 2. No backward imports (e.g., service must not import from runtime)
-3. `boto3` only allowed in `repo/` layer
+3. `boto3`, the LiveKit SDK (`livekit`) and the model stack (`faster_whisper`, `ctranslate2`, `av`) only allowed in `repo/` layer
+6. `app/jobs/` holds command-line entry points (`python -m app.jobs.retention`) that call the service layer
 4. All boundary data uses Pydantic models (no raw dicts across layers)
 5. Authored Python files under `services/api/app/` stay under 300 lines
 
@@ -62,80 +81,68 @@ services/api/
 
 ## Boundary Invariants
 
-- **No external SDK leakage**: `boto3` is only imported in `app/repo/`. All other layers interact with B2 through the repo interface.
-- **No raw dicts at boundaries**: All data crossing layer boundaries uses typed Pydantic models.
-- **No cross-layer mutable state**: Configuration is read-only after init, and no mutable state is shared *between* layers. Intra-layer caches/counters (the listing cache in `repo/list_cache.py`, the B2 connectivity cache in `repo/b2_client.py`, the download counter in `repo/counter.py`, the rate-limit and metrics state in `runtime/`) are module-local and guarded by a `threading.Lock`. The listing cache also owns the only background thread in the app: a stale entry is served immediately while that thread re-scans (stale-while-revalidate), and `main.lifespan` warms it once at startup so no user pays for the cold full-bucket scan.
-- **Validated inputs**: All HTTP inputs validated by FastAPI/Pydantic. File keys reject empty and path-traversal patterns; optional prefix confinement via `ALLOWED_KEY_PREFIX` (off by default).
+- **No external SDK leakage**: `boto3`, `livekit-api` and `faster-whisper` are imported only in `app/repo/` (asserted by `tests/test_structure.py`). The model stack is imported lazily inside `repo/transcriber.py`, so the host venv `pnpm verify` uses does not need it.
+- **Manifest first**: `POST /api/sessions` writes `manifest.json` before Egress starts, and a session that fails later keeps a `failed` manifest. Retention never deletes a manifest; only an explicit session delete does.
+- **Egress writes the recording**: the API never uploads audio. It reads the recording back (streamed) to checksum and transcribe it.
+- **No raw dicts at boundaries**: data crossing layers uses Pydantic models; the parsed webhook crosses `repo/` -> `service/` as frozen dataclasses (`app/types/webhook.py`).
+- **No cross-layer mutable state**: configuration is read-only after init. Module-local state (listing cache, B2 and LiveKit health caches, webhook dedupe ids, per-session manifest locks, rate-limit and metrics counters) is guarded by a `threading.Lock`.
+- **Validated inputs**: session ids must match `s-<YYYYMMDD>-<6 hex>` before any key is built from them; file keys reject path traversal; webhook bodies are verified byte for byte before parsing.
 
 ## Deployment
 
-- **Local dev** — `pnpm dev` runs both services via `concurrently`
-  - Web: `localhost:3000`
-  - API: `localhost:8000`
-- **Railway** — two services from the same repository: `web` builds from the
-  repository root because it consumes `packages/shared`; `api` builds from
-  `services/api`. Each service's versioned config sits at its own root —
-  `railway.json` and `services/api/railway.json` — the default path Railway
-  discovers, so a one-click template deploy inherits the same build, start, and
-  health behavior with nothing to configure by hand. The human-approved
-  staging/production contract lives in [infra/railway/README.md](infra/railway/README.md).
-- **Vercel** — one project using [Vercel Services](https://vercel.com/docs/services):
-  the `web` (Next.js) and `api` (FastAPI) services build from the same repo and
-  share one origin — the web app at `/`, the API under `/api`. The repo-root
-  `vercel.json` declares both services and routes `/api/*` to the API service;
-  the Vercel-only `services/api/index.py` strips the `/api` prefix so FastAPI
-  keeps its native paths (`/health`, `/files`, …). Uploads go directly from the
-  browser to B2 via a presigned PUT (see
-  [File Upload](docs/features/file-upload.md)), so they bypass the Function's
-  4.5 MB payload ceiling entirely — the bucket must allow the deploy origin in
-  its CORS. A two-separate-Projects alternative and the full delivery contract
-  live in [infra/vercel/README.md](infra/vercel/README.md).
+- **Docker Compose only.** `make up` builds and starts `redis`, `livekit`, `egress`, `agent` and `api`; `make web` runs the UI on the host. There is no hosted deployment target: the sample needs long-lived LiveKit, Egress and Redis containers, which serverless platforms do not run.
+- Only `7880/tcp`, `7881/tcp`, `50000-50019/udp` (LiveKit) and `8000/tcp` (API) are published. Redis and Egress have no host ports; B2 credentials reach Egress over the private Compose network inside each recording request. See [infra/livekit/README.md](infra/livekit/README.md).
 
 External provisioning and deployment remain explicit user-approved actions.
 
 ## Data Stores
 
 <!-- gen:begin arch-data-stores -->
-- **Backblaze B2 (S3-compatible API)** — the only data store; there is no application database
-  - Every object this app writes lives under the `uploads/` key prefix of one bucket
+- **Backblaze B2 (S3-compatible API), written directly by LiveKit Egress** — the only data store; there is no application database
+  - Every object this app writes lives under the `sessions/` key prefix of one bucket
   - Listing, per-key metadata and presigned URLs all come from the S3 surface below
-  - The primary entity is `FileMetadata`; one file is one object
+  - The primary entity is `SessionManifest`; one session is one object
 <!-- gen:end arch-data-stores -->
 
 ## External Services
 
 <!-- gen:begin arch-external-services -->
-- **Backblaze B2 (S3-compatible API)** — reached only through `services/api/app/repo/`, using:
-  - `put_object` — store an uploaded object
-  - `presigned PUT` — the browser uploads bytes directly to B2, bypassing the Function payload cap
-  - `list_objects_v2` — the shared full-bucket listing behind the file list and the stats cards
-  - `head_object` — cheap per-key metadata, and the /health connectivity probe
-  - `get_object` — re-read bytes to recompute rich metadata on demand
-  - `presigned GET` — download and inline preview URLs
-  - `delete_object` — remove an object
+- **Backblaze B2 (S3-compatible API), written directly by LiveKit Egress** — reached only through `services/api/app/repo/`, using:
+  - `Egress PutObject / multipart upload` — LiveKit Egress's own S3 uploader writes sessions/<date>/<room>/recording.ogg directly to B2; the API never re-uploads it
+  - `put_object` — manifest.json, transcript.json, evaluation.json, webhooks/<event_id>.json and reports/<date>.json
+  - `get_object (streamed)` — SHA-256 of the recording, transcription input, and reading manifests and reports
+  - `head_object` — recording size and ETag, checked against the webhook's size; the /api/health probe
+  - `list_objects_v2 (paginated)` — session list (manifests under sessions/), reports list, and the full-bucket explorer
+  - `list_object_versions + delete_object(VersionId)` — retention and session delete remove every version, so the bytes are actually gone
+  - `presigned GET` — audio playback and downloads in the UI
 <!-- gen:end arch-external-services -->
 
 ## Trust Boundaries
 
 See [docs/SECURITY.md](docs/SECURITY.md) for full security documentation.
 
-- **Frontend -> API** — CORS-restricted to configured origins. `CORSMiddleware` is registered LAST in `main.py` (outermost) so it wraps **every** response, including uncaught-exception 500s — otherwise the browser would block error responses and the UI would only see an opaque "network error". See [docs/RELIABILITY.md](docs/RELIABILITY.md#error-handling). A per-IP rate-limit middleware sits inner to CORS; see [docs/SECURITY.md](docs/SECURITY.md#rate-limiting).
-- **API -> B2** — authenticated via application keys, signature v4
-- **Client -> B2** — presigned URLs for download (10-min expiry, forced attachment)
+- **Browser -> API**: CORS-restricted to localhost origins. `CORSMiddleware` is outermost so error responses carry CORS headers too (see [docs/RELIABILITY.md](docs/RELIABILITY.md#error-handling)). A per-IP rate limiter sits inside it; the webhook route is exempt.
+- **LiveKit -> API**: `POST /api/webhooks/livekit` accepts only bodies whose SHA-256 matches the JWT in `Authorization`, signed with `LIVEKIT_API_SECRET`. Anything else is a 401.
+- **API -> LiveKit**: server API calls signed with the dev key pair; browser join tokens are scoped to one room, 30 minutes.
+- **API -> Egress -> B2**: each Egress request carries an `S3Upload` with the B2 key, over the Compose network only.
+- **API -> B2**: application key, signature v4, `user_agent_extra=b2ai-livekit-agent-session-archive`.
+- **Browser -> B2**: presigned GET only (playback and downloads, 10 to 15 minutes).
 
 ## Data Flows
 
-- **Upload**: Browser -> `POST /upload/presign` (API validates the declared file + signs a PUT) -> Browser PUTs bytes **directly to B2** -> `POST /upload/verify` (API HEADs + Range-sniffs the stored object) -> response
-- **List**: Browser -> `GET /files` -> service calls repo -> returns file list
-- **Download**: Browser -> `GET /files/{key}/download` -> service validates key -> repo generates presigned URL -> browser downloads
-- **Delete**: Browser -> `DELETE /files/{key}` -> service validates key -> repo deletes from B2
+- **Create**: Browser -> `POST /api/sessions` -> create room -> write manifest (`recording`) -> dispatch agent -> start Egress (literal key, `S3Upload` from `B2_REGION`).
+- **Record**: agent speaks -> deletes the room -> Egress uploads `recording.ogg` to B2.
+- **Webhook**: LiveKit -> `POST /api/webhooks/livekit` -> verify -> dedupe -> store evidence -> update manifest (`recorded`) -> background post-processing.
+- **Post-process**: `head_object` size check -> streamed SHA-256 -> download to a temp file -> faster-whisper -> `transcript.json` -> evaluation -> `evaluation.json` -> manifest (`processed`).
+- **Retention**: `POST /api/retention/runs` or `make retention-apply` -> decide per manifest -> delete every version of the media and derivatives -> manifest (`expired`) -> `reports/<date>.json`.
+- **Browse**: `/sessions` lists manifests under `sessions/`; `/files` lists the whole bucket.
 
 ## Observability
 
-- Structured JSON logging on all requests with `request_id`
-- Request timing middleware (logs duration per request; also the catch-all that converts uncaught exceptions to a typed JSON 500)
-- `/metrics` endpoint (Prometheus format: request count, latency, upload count)
-- `/health` endpoint (B2 connectivity check)
+- Structured JSON logging with `request_id`; every webhook and session transition is logged.
+- `/metrics` (Prometheus format): request count and latency, verified and rejected webhooks.
+- `/api/health`: B2 connectivity and LiveKit reachability.
+- `make logs` follows every Compose service.
 
 ## API Contract
 
@@ -156,22 +163,32 @@ still in step.
 
 | Route | Returns | Generated client route |
 | --- | --- | --- |
-| `DELETE /files-by-key` | `DeleteFileResponse` | `fileByKeyDelete` |
-| `DELETE /files/{key}` | `DeleteFileResponse` | `legacyFileDelete` |
-| `GET /files` | `FileMetadata[]` | `files` |
-| `GET /files-by-key/detail` | `FileMetadataDetail` | `fileByKeyDetail` |
-| `GET /files-by-key/download` | `FileUrlResponse` | `fileByKeyDownload` |
-| `GET /files-by-key/metadata` | `FileMetadata` | `fileByKeyMetadata` |
-| `GET /files-by-key/preview` | `FileUrlResponse` | `fileByKeyPreview` |
-| `GET /files/{key}` | `FileMetadata` | `legacyFileMetadata` |
-| `GET /files/{key}/download` | `FileUrlResponse` | `legacyFileDownload` |
-| `GET /files/{key}/preview` | `FileUrlResponse` | `legacyFilePreview` |
-| `GET /files/stats` | `UploadStats` | `fileStats` |
-| `GET /files/stats/activity` | `DailyUploadCount[]` | `uploadActivity` |
-| `GET /health` | `HealthStatus` | `health` |
+| `DELETE /api/files-by-key` | `DeleteFileResponse` | `fileByKeyDelete` |
+| `DELETE /api/files/{key}` | `DeleteFileResponse` | `legacyFileDelete` |
+| `DELETE /api/sessions/{session_id}` | — | `sessionDelete` |
+| `GET /api/files` | `FileMetadata[]` | `files` |
+| `GET /api/files-by-key/detail` | `FileMetadataDetail` | `fileByKeyDetail` |
+| `GET /api/files-by-key/download` | `FileUrlResponse` | `fileByKeyDownload` |
+| `GET /api/files-by-key/metadata` | `FileMetadata` | `fileByKeyMetadata` |
+| `GET /api/files-by-key/preview` | `FileUrlResponse` | `fileByKeyPreview` |
+| `GET /api/files/{key}` | `FileMetadata` | `legacyFileMetadata` |
+| `GET /api/files/{key}/download` | `FileUrlResponse` | `legacyFileDownload` |
+| `GET /api/files/{key}/preview` | `FileUrlResponse` | `legacyFilePreview` |
+| `GET /api/health` | `HealthStatus` | `health` |
+| `GET /api/retention/policy` | `RetentionPolicy` | `retentionPolicy` |
+| `GET /api/retention/reports` | `RetentionReportList` | `retentionReports` |
+| `GET /api/retention/reports/{day}` | `RetentionReport` | `retentionReport` |
+| `GET /api/scripts` | `ScriptList` | `scripts` |
+| `GET /api/sessions` | `SessionList` | `sessions` |
+| `GET /api/sessions/{session_id}` | `SessionDetail` | `sessionDetail` |
+| `GET /api/stats` | `ArchiveStats` | `stats` |
 | `GET /metrics` | — | _server-only_ |
-| `POST /upload/presign` | `PresignUploadResponse` | `uploadPresign` |
-| `POST /upload/verify` | `FileUploadResponse` | `uploadVerify` |
+| `PATCH /api/sessions/{session_id}` | `SessionManifest` | `sessionUpdate` |
+| `POST /api/retention/runs` | `RetentionReport` | `retentionRun` |
+| `POST /api/sessions` | — | `sessionCreate` |
+| `POST /api/sessions/{session_id}/reprocess` | — | `sessionReprocess` |
+| `POST /api/sessions/{session_id}/token` | `JoinToken` | `sessionToken` |
+| `POST /api/webhooks/livekit` | `WebhookAck` | _server-only_ |
 <!-- gen:end arch-api-contract -->
 
 ## Canonical Files
@@ -198,16 +215,19 @@ Generated — **never hand-edit**; change the source and re-run the command:
 - `packages/shared/src/generated/api-types.ts` — `pnpm gen:api`
 - `apps/web/src/lib/generated/api-routes.ts` — `pnpm gen:api`
 - `apps/web/src/lib/generated/query-keys.ts` — `pnpm gen:api`
-- The marker-delimited regions of this file, `AGENTS.md`, `README.md` and the 2 `infra/` runbooks — `pnpm gen:docs`
+- The marker-delimited regions of this file, `AGENTS.md`, `README.md` and the 0 `infra/` runbooks — `pnpm gen:docs`
 <!-- gen:end arch-canonical-files -->
 
 ## Core Features
 
 <!-- gen:begin arch-core-features -->
-- [File Upload](docs/features/file-upload.md) — drag-and-drop upload with real-time progress
-- [File Browser](docs/features/file-browser.md) — list, preview, download, delete files
-- [Dashboard](docs/features/dashboard.md) — stats cards, upload chart, recent uploads
-- [Metadata Extraction](docs/features/metadata-extraction.md) — image dimensions, EXIF, PDF info, checksums
+- [Session Recording](docs/features/session-recording.md) — create a room, dispatch the test agent, and have Egress record it straight to B2
+- [Session Library](docs/features/session-library.md) — browse sessions under sessions/, play recordings, edit class or label, reprocess, delete
+- [Webhook Manifests](docs/features/webhook-manifests.md) — verified LiveKit webhooks, stored as evidence, keep each session manifest current
+- [Transcription and Evaluation](docs/features/transcription-evaluation.md) — local faster-whisper transcript, word error rate and expected-phrase check
+- [Retention](docs/features/retention.md) — keep or remove sessions by class, with a per-day report in B2
+- [File Browser](docs/features/file-browser.md) — list, preview, download, delete any object in the bucket
+- [Dashboard](docs/features/dashboard.md) — sessions by class and status, recorded minutes and bytes, last retention run
 - [Settings](docs/features/settings.md) — theme plus labelled demo preference fields
 <!-- gen:end arch-core-features -->
 
@@ -217,6 +237,4 @@ Generated — **never hand-edit**; change the source and re-run the command:
 - [docs/SECURITY.md](docs/SECURITY.md) — security principles and implementation
 - [docs/RELIABILITY.md](docs/RELIABILITY.md) — reliability expectations
 - [AGENTS.md](AGENTS.md) — architectural invariants and agent instructions
-- [infra/vercel/README.md](infra/vercel/README.md) — Vercel deployment contract
-- [infra/railway/README.md](infra/railway/README.md) — Railway delivery contract
 <!-- gen:end arch-references -->

@@ -5,9 +5,9 @@ the expensive list/stats endpoints or loop delete/download calls — a DoS and a
 Backblaze transaction/egress cost-amplification vector. This is a small,
 dependency-free fixed-window limiter.
 
-Scope: in-process, per replica. That's acceptable for a starter kit; horizontal
-scaling (multiple Railway replicas) needs a shared store like Redis. Documented
-in docs/RELIABILITY.md.
+Scope: in-process, per replica. That's acceptable for a local Compose demo;
+horizontal scaling needs a shared store like Redis. Documented in
+docs/RELIABILITY.md.
 """
 
 import time
@@ -33,7 +33,7 @@ def _client_ip(request: Request) -> str:
     """Best-effort client IP.
 
     Trust only the RIGHTMOST `X-Forwarded-For` entry — the address the trusted
-    edge proxy (Railway) appended. The leftmost entries are client-supplied and
+    edge proxy appended. The leftmost entries are client-supplied and
     trivially spoofable; keying on them would let a caller mint a fresh limiter
     bucket per request (bypassing the limit and ballooning `_state`). Behind
     multiple proxies, adjust the trusted-hop selection accordingly.
@@ -54,7 +54,11 @@ def _tier_and_limit(request: Request) -> tuple[str, int]:
     the tighter tier.
     """
     path = request.url.path
-    if request.method in ("POST", "DELETE") or path.endswith(
+    if path == "/api/webhooks/livekit":
+        # The LiveKit server is one trusted client on the Compose network that
+        # sends every room event; throttling it would drop archive evidence.
+        return "webhook", 0
+    if request.method in ("POST", "PATCH", "DELETE") or path.endswith(
         ("/download", "/preview", "/detail")
     ):
         return "write", settings.rate_limit_write_per_minute
@@ -70,6 +74,8 @@ def _reset_state() -> None:
 async def rate_limit_middleware(request: Request, call_next):
     ip = _client_ip(request)
     tier, limit = _tier_and_limit(request)
+    if limit <= 0:
+        return await call_next(request)
     now = time.monotonic()
     key = (ip, tier)
 

@@ -1,39 +1,63 @@
 {
   "$schema": "../../scripts/gen/sample.schema.json",
   "schema_version": 1,
-  "name": "Vibe Coding Starter Kit",
-  "slug": "vibe-coding-starter-kit",
-  "package_scope": "@vibe-coding-starter-kit",
-  "purpose": "A well-engineered full-stack foundation — dashboard, drag-and-drop upload and a file browser — with Backblaze B2 storage already wired in, so builders skip the boilerplate loop.",
-  "tagline": "Stop wiring boilerplate and start building.",
-  "primary_entity": { "schema": "FileMetadata", "singular": "file", "plural": "files" },
+  "name": "LiveKit Agent Session Archive",
+  "slug": "livekit-agent-session-archive",
+  "package_scope": "@livekit-voice-agent-recording-retention",
+  "purpose": "Record LiveKit voice-agent sessions through Egress directly to Backblaze B2, link each recording to its transcription and evaluation in a per-session manifest, and apply retention by session class.",
+  "tagline": "LiveKit Egress recordings, manifests and retention on Backblaze B2.",
+  "primary_entity": {
+    "schema": "SessionManifest",
+    "singular": "session",
+    "plural": "sessions"
+  },
   "features": [
     {
-      "title": "File Upload",
-      "route": "/upload",
-      "doc": "docs/features/file-upload.md",
-      "summary": "drag-and-drop upload with real-time progress",
-      "workflow_heading": "Upload Files"
+      "title": "Session Recording",
+      "route": "/sessions/new",
+      "doc": "docs/features/session-recording.md",
+      "summary": "create a room, dispatch the test agent, and have Egress record it straight to B2",
+      "workflow_heading": "Record a Session"
+    },
+    {
+      "title": "Session Library",
+      "route": "/sessions",
+      "doc": "docs/features/session-library.md",
+      "summary": "browse sessions under sessions/, play recordings, edit class or label, reprocess, delete",
+      "workflow_heading": "Review a Session"
+    },
+    {
+      "title": "Webhook Manifests",
+      "route": null,
+      "doc": "docs/features/webhook-manifests.md",
+      "summary": "verified LiveKit webhooks, stored as evidence, keep each session manifest current"
+    },
+    {
+      "title": "Transcription and Evaluation",
+      "route": null,
+      "doc": "docs/features/transcription-evaluation.md",
+      "summary": "local faster-whisper transcript, word error rate and expected-phrase check"
+    },
+    {
+      "title": "Retention",
+      "route": "/retention",
+      "doc": "docs/features/retention.md",
+      "summary": "keep or remove sessions by class, with a per-day report in B2",
+      "workflow_heading": "Apply Retention"
     },
     {
       "title": "File Browser",
       "route": "/files",
       "doc": "docs/features/file-browser.md",
-      "summary": "list, preview, download, delete files",
-      "workflow_heading": "Browse and Manage Files"
+      "summary": "list, preview, download, delete any object in the bucket",
+      "workflow_heading": "Browse the Bucket"
     },
     {
       "title": "Dashboard",
       "route": "/",
       "doc": "docs/features/dashboard.md",
-      "summary": "stats cards, upload chart, recent uploads",
+      "summary": "sessions by class and status, recorded minutes and bytes, last retention run",
       "workflow_heading": "View Dashboard"
-    },
-    {
-      "title": "Metadata Extraction",
-      "route": null,
-      "doc": "docs/features/metadata-extraction.md",
-      "summary": "image dimensions, EXIF, PDF info, checksums"
     },
     {
       "title": "Settings",
@@ -44,42 +68,151 @@
     }
   ],
   "b2_surface": [
-    { "operation": "put_object", "why": "store an uploaded object" },
-    { "operation": "presigned PUT", "why": "the browser uploads bytes directly to B2, bypassing the Function payload cap" },
-    { "operation": "list_objects_v2", "why": "the shared full-bucket listing behind the file list and the stats cards" },
-    { "operation": "head_object", "why": "cheap per-key metadata, and the /health connectivity probe" },
-    { "operation": "get_object", "why": "re-read bytes to recompute rich metadata on demand" },
-    { "operation": "presigned GET", "why": "download and inline preview URLs" },
-    { "operation": "delete_object", "why": "remove an object" }
-  ],
-  "b2_key_prefix": "uploads/",
-  "stack": {
-    "web": "Next.js 16, React 19, Tailwind v4, shadcn/ui, TanStack Query, Recharts",
-    "api": "FastAPI, Python 3.12+, boto3, Pydantic v2, Pillow, pypdf",
-    "storage": "Backblaze B2 (S3-compatible API)",
-    "package_manager": "pnpm workspaces"
-  },
-  "deployment_targets": ["vercel", "railway"],
-  "env_vars": [
-    { "name": "B2_APPLICATION_KEY_ID", "required": true, "secret": true, "note": "B2 application key ID (**keyID** in the B2 console)" },
-    { "name": "B2_APPLICATION_KEY", "required": true, "secret": true, "note": "B2 application key (**applicationKey**) — shown once at creation" },
-    { "name": "B2_BUCKET_NAME", "required": true, "secret": false, "note": "bucket unique name (**Bucket Unique Name** in the B2 console)" },
-    { "name": "B2_REGION", "required": true, "secret": false, "note": "the region inside the bucket's **Endpoint** (`s3.<region>.backblazeb2.com`); the S3 endpoint is derived from it" },
-    { "name": "B2_PUBLIC_URL_BASE", "required": false, "secret": false, "note": "public object base URL, when the bucket is public" },
-    { "name": "NEXT_PUBLIC_API_URL", "required": false, "secret": false, "note": "separate-origin deploys only; Next.js inlines it at build time" }
-  ],
-  "attribution_token": "b2ai-oss-start",
-  "repo": { "org": "backblaze-b2-samples", "name": "vibe-coding-starter-kit" },
-  "screenshots": [
     {
-      "path": "docs/images/b2-starterkit-dashboard1.png",
-      "alt": "Dashboard view showing stat cards, upload activity chart, and recent uploads table",
-      "caption": "**Dashboard** — stats, upload activity, and recent uploads at a glance:"
+      "operation": "Egress PutObject / multipart upload",
+      "why": "LiveKit Egress's own S3 uploader writes sessions/<date>/<room>/recording.ogg directly to B2; the API never re-uploads it"
     },
     {
-      "path": "docs/images/b2-starterkit-fileview2.png",
-      "alt": "File browser view showing a tree of files with hover actions",
-      "caption": "**File browser** — tree view with preview, download, and delete:"
+      "operation": "put_object",
+      "why": "manifest.json, transcript.json, evaluation.json, webhooks/<event_id>.json and reports/<date>.json"
+    },
+    {
+      "operation": "get_object (streamed)",
+      "why": "SHA-256 of the recording, transcription input, and reading manifests and reports"
+    },
+    {
+      "operation": "head_object",
+      "why": "recording size and ETag, checked against the webhook's size; the /api/health probe"
+    },
+    {
+      "operation": "list_objects_v2 (paginated)",
+      "why": "session list (manifests under sessions/), reports list, and the full-bucket explorer"
+    },
+    {
+      "operation": "list_object_versions + delete_object(VersionId)",
+      "why": "retention and session delete remove every version, so the bytes are actually gone"
+    },
+    {
+      "operation": "presigned GET",
+      "why": "audio playback and downloads in the UI"
     }
-  ]
+  ],
+  "b2_key_prefix": "sessions/",
+  "stack": {
+    "web": "Next.js 16, React 19, Tailwind v4, shadcn/ui, TanStack Query, livekit-client",
+    "api": "FastAPI, Python 3.12, boto3, livekit-api, faster-whisper",
+    "storage": "Backblaze B2 (S3-compatible API), written directly by LiveKit Egress",
+    "package_manager": "pnpm workspaces plus Docker Compose"
+  },
+  "deployment_targets": [],
+  "env_vars": [
+    {
+      "name": "B2_APPLICATION_KEY_ID",
+      "required": true,
+      "secret": true,
+      "note": "B2 application key ID (**keyID** in the B2 console); the API passes it to Egress per request"
+    },
+    {
+      "name": "B2_APPLICATION_KEY",
+      "required": true,
+      "secret": true,
+      "note": "B2 application key (**applicationKey**), shown once at creation"
+    },
+    {
+      "name": "B2_BUCKET_NAME",
+      "required": true,
+      "secret": false,
+      "note": "bucket unique name (**Bucket Unique Name** in the B2 console)"
+    },
+    {
+      "name": "B2_REGION",
+      "required": true,
+      "secret": false,
+      "note": "the region inside the bucket's **Endpoint** (`s3.<region>.backblazeb2.com`); the S3 endpoint for boto3 and Egress is derived from it"
+    },
+    {
+      "name": "B2_PUBLIC_URL_BASE",
+      "required": false,
+      "secret": false,
+      "note": "public object base URL, when the bucket is public"
+    },
+    {
+      "name": "LIVEKIT_API_KEY",
+      "required": true,
+      "secret": true,
+      "note": "local LiveKit dev key shared by the server, Egress, the agent and the API; any placeholder works locally"
+    },
+    {
+      "name": "LIVEKIT_API_SECRET",
+      "required": true,
+      "secret": true,
+      "note": "local LiveKit dev secret (at least 32 characters); signs room tokens and webhooks"
+    },
+    {
+      "name": "LIVEKIT_URL",
+      "required": false,
+      "secret": false,
+      "note": "where the API reaches LiveKit inside Compose (default `ws://livekit:7880`)"
+    },
+    {
+      "name": "LIVEKIT_PUBLIC_URL",
+      "required": false,
+      "secret": false,
+      "note": "where a browser on the host reaches LiveKit (default `ws://localhost:7880`)"
+    },
+    {
+      "name": "ARCHIVE_PREFIX",
+      "required": false,
+      "secret": false,
+      "note": "prefix for every key this app writes (default empty; `make test` uses `e2e/<run-id>/`)"
+    },
+    {
+      "name": "WHISPER_MODEL",
+      "required": false,
+      "secret": false,
+      "note": "faster-whisper model (default `tiny.en`)"
+    },
+    {
+      "name": "WHISPER_DEVICE",
+      "required": false,
+      "secret": false,
+      "note": "`auto` (CUDA when available, else CPU), `cpu` or `cuda`"
+    },
+    {
+      "name": "EVAL_MAX_WER",
+      "required": false,
+      "secret": false,
+      "note": "highest word error rate that still passes (default 0.5)"
+    },
+    {
+      "name": "RETENTION_DAYS_DEBUG",
+      "required": false,
+      "secret": false,
+      "note": "days a `debug` session is kept (default 1)"
+    },
+    {
+      "name": "RETENTION_DAYS_STANDARD",
+      "required": false,
+      "secret": false,
+      "note": "days a `standard` session is kept (default 30)"
+    },
+    {
+      "name": "RETENTION_DAYS_TRAINING",
+      "required": false,
+      "secret": false,
+      "note": "days a `training` session is kept (default 365)"
+    },
+    {
+      "name": "NEXT_PUBLIC_API_URL",
+      "required": false,
+      "secret": false,
+      "note": "API origin for the web UI (default `http://localhost:8000`); Next.js inlines it at build time"
+    }
+  ],
+  "attribution_token": "b2ai-livekit-agent-session-archive",
+  "repo": {
+    "org": "backblaze-b2-samples",
+    "name": "livekit-agent-b2-session-archive"
+  },
+  "screenshots": []
 }

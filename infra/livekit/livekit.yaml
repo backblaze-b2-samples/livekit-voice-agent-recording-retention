@@ -1,0 +1,28 @@
+# LiveKit server config for the local Compose stack (mounted at /etc/livekit.yaml).
+#
+# No secrets live in this file. docker-compose.yml supplies them as env vars the
+# server reads on top of it:
+#   LIVEKIT_KEYS             "<LIVEKIT_API_KEY>: <LIVEKIT_API_SECRET>"
+#   LIVEKIT_WEBHOOK_API_KEY  <LIVEKIT_API_KEY> (the key that signs webhooks)
+port: 7880
+bind_addresses:
+  - 0.0.0.0
+rtc:
+  # Signal on 7880/tcp, media over TCP on 7881 and a small UDP range. Compose
+  # publishes exactly these ports to the host.
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 50019
+  use_external_ip: false
+  # Lets a browser on the host reach the server through the published ports,
+  # while the agent and Egress use the bridge network address.
+  enable_loopback_candidate: true
+redis:
+  address: redis:6379
+room:
+  empty_timeout: 60
+webhook:
+  urls:
+    - http://api:8000/api/webhooks/livekit
+logging:
+  level: info

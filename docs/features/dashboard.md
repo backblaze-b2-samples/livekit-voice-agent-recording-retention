@@ -1,62 +1,48 @@
-<!-- last_verified: 2026-07-28 -->
+<!-- last_verified: 2026-11-19 -->
 # Feature: Dashboard
 
 ## Purpose
-Provide an at-a-glance overview of file storage usage and recent upload activity.
+Give an at-a-glance view of the session archive: how many sessions per class and status, how much audio is stored, how evaluations went, and when retention last ran.
 
 ## Used By
 - UI: `/` page (dashboard home)
-- API: `GET /files/stats`, `GET /files`, `GET /files/stats/activity`
+- API: `GET /api/stats`, `GET /api/retention/policy`
 
 ## Core Functions
-- `apps/web/src/components/dashboard/stats-cards.tsx` — 4 stat cards, plus the on-screen loading notice while the bucket scan runs
-- `apps/web/src/components/dashboard/recent-uploads-table.tsx` — last 10 uploads
-- `apps/web/src/components/dashboard/upload-chart.tsx` — bar chart of uploads per day
-- `apps/web/src/lib/api-client.ts` — `getFileStats()`, `getFiles()`, `getUploadActivity()`
-- `services/api/app/runtime/files.py` — `GET /files/stats` handler
-- `services/api/app/service/files.py` — `get_stats()` business logic
-- `services/api/app/repo/b2_client.py` — `get_upload_stats()` data access
-- `services/api/app/repo/list_cache.py` — the shared bucket listing both `/files/stats` and `/files` read, so the dashboard and the file browser never scan twice
-- `apps/web/src/components/common/loading-notice.tsx` — visible, escalating wait copy
+- `apps/web/src/components/dashboard/stats-cards.tsx`: four stat cards
+- `apps/web/src/components/dashboard/class-breakdown.tsx`: sessions per class (with retention) and per status
+- `apps/web/src/components/dashboard/recent-sessions-table.tsx`: the five newest sessions
+- `apps/web/src/lib/queries.ts`: `useArchiveStats` (polls every 15 s)
+- `services/api/app/service/stats.py`: `archive_stats`
 
 ## Canonical Files
-- Dashboard page layout: `apps/web/src/components/dashboard/stats-cards.tsx`
-- Stats service logic: `services/api/app/service/files.py`
+- Pattern exemplar: `services/api/app/service/stats.py`
 
 ## Inputs
-- None (dashboard loads data automatically)
+- None (reads every manifest under `sessions/` and the reports list)
 
 ## Outputs
-- `GET /files/stats` → `UploadStats` (total_files, total_size_bytes, total_size_human, uploads_today, total_downloads)
-- `GET /files` (limit 10) → `FileMetadata[]` for recent uploads table (sorted newest-first)
-- `GET /files/stats/activity?days=7` → `DailyUploadCount[]` for chart (server-side aggregation)
+- `ArchiveStats`: `total_sessions`, `by_class`, `by_status`, `recorded_seconds`, `recorded_bytes(_human)` (sessions not expired), `passed_evaluations`, `last_report`, `recent_sessions`
 
 ## Flow
-- Page loads → three parallel API calls (stats, recent files, upload activity), all served from one cached bucket listing
-- Stats needed ~8.3s to replace the skeletons on a 16k-object bucket, so: the API warms that listing at startup and serves it stale-while-revalidate (only the very first scan after boot can block), and the cards state the wait in words while it runs instead of showing four silent placeholders
-- Stats cards display total files, storage used, uploads today, total downloads
-- Upload chart displays server-aggregated daily counts for last 7 days as bar chart after activity data is known
-- Recent uploads table shows last 10 files with filename, size, type, date, status badge. Each filename is a link to `/files?preview=<key>`, which opens that file's preview in the browser — the rows used to be inert text with no role, tabindex or handler, so the "click a file to preview it" gesture `/files` teaches did nothing here
+- The API lists and loads the manifests, aggregates them and reads the newest report summary
+- The page renders cards, the class/status breakdown and the recent table
 
 ## Edge Cases
-- API unavailable → error states with retry where supported; activity chart does not show a false zero state while loading
-- No files uploaded → empty chart message, empty table message
-- Large file count → stats endpoint paginates through all objects using `ContinuationToken`; the result is cached, so the cost is paid once (at startup) rather than per page view
-- Bucket changed by something other than this app → numbers can lag by up to `LIST_CACHE_TTL_SECONDS` (default 300s). The app's own uploads/deletes invalidate the cache, so they are never stale
+- No sessions -> zeros and an empty-state table
+- API unreachable -> inline `ErrorState` with Retry instead of zeros
+- Expired sessions count in totals and statuses but not in recorded minutes or bytes
 
-## UX States
-- Loading: an on-screen "Loading bucket stats…" notice above the cards (escalating at 4s and 12s), with skeleton placeholders for cards, table, and upload activity chart
-- Empty: "No files uploaded yet" / "No upload data available yet"
-- Loaded: populated cards, chart, table
+## UX States (if applicable)
+- Empty: "No sessions yet"
+- Loading: worded loading notice plus skeletons
+- Error: `ErrorState`
 
 ## Verification
-- Test files: `services/api/tests/test_upload_activity.py`, `services/api/tests/test_recent_files.py`, `services/api/tests/test_list_cache.py`, `apps/web/src/lib/loading-progress.test.ts`
-- Required cases: stats with files, stats with empty bucket, API error fallback, cached listing reused across stats and listing calls, loading copy escalating at its thresholds
-- Focused verify command: `pnpm test:api`
+- Test files: `services/api/tests/test_error_handling.py::test_stats_b2_failure_returns_500`, `apps/web/src/lib/session-format.test.ts`
 - Default pre-PR verify command: `pnpm verify`
-- Full local verify command: `pnpm verify:full` when the E2E/live prerequisites in [Verification](../verification.md#non-live-verification) are available
-- Pass criteria: focused tests and `pnpm verify` green; explain any skipped `pnpm verify:full` prerequisites
+- Pass criteria: stats endpoint returns a typed 500 on B2 failure; formatting helpers green
 
 ## Related Docs
+- [docs/app-workflows.md](../app-workflows.md)
 - [ARCHITECTURE.md](../../ARCHITECTURE.md)
-- [App Workflows](../app-workflows.md)

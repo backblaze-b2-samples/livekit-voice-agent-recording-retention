@@ -1,0 +1,19 @@
+{
+  "id": "support-handoff",
+  "title": "Support handoff",
+  "description": "A short support call that ends with a handoff to a human. The default first run.",
+  "pause_s": 0.7,
+  "lines": [
+    "Hello, thank you for calling the support line.",
+    "I can see that your order has not arrived yet.",
+    "The tracking number shows the package is still at the warehouse.",
+    "I will hand you over to a human agent who can send a replacement.",
+    "Thank you for your patience, and have a good day."
+  ],
+  "expected_phrases": [
+    "support line",
+    "tracking number",
+    "human agent",
+    "replacement"
+  ]
+}

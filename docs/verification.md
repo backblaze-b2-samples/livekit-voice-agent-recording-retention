@@ -273,7 +273,21 @@ plain-language list here and in `AGENTS.md` §6 (see
 [Documentation Update](dev-workflows.md#documentation-update)), not a duplicated
 shell chain.
 
-Normal API tests deny socket connections and mock the B2 boundary in `/health`,
+Normal API tests deny socket connections and stub the repo boundary (B2, the
+LiveKit server and the transcriber) with in-memory fakes (`tests/fakes.py`). They
+still sign real LiveKit webhook tokens with `livekit-api`, so verification is
+exercised for real. The model stack (`requirements-ml.txt`) is not installed in
+the host venv; the code imports it lazily.
+
+Live session archive suite: `make test` (Docker plus B2 credentials in the
+repo-root env file) restarts the stack with `ARCHIVE_PREFIX=e2e/<run-id>/` and
+runs `services/api/live_tests/test_session_archive_e2e.py` inside the `api`
+container: one real scripted session through LiveKit, Egress, the webhook,
+checksum, transcription and evaluation, then retention against backdated
+fixtures, then deletion of every version under the run prefix. `make demo` is
+the same path without assertions. Neither is part of `pnpm verify` or CI.
+
+Normal API tests deny socket connections and mock the B2 boundary in `/api/health`,
 so a populated developer `.env` cannot turn this gate into a live service test.
 To intentionally validate real connectivity with approved non-production
 credentials, run `RUN_LIVE_B2_TESTS=1 pnpm test:live:b2`. Without that explicit

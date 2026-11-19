@@ -1,0 +1,12 @@
+# Model stack for transcription and the live test's duration check. Installed in
+# the api Docker image only (services/api/Dockerfile), never in the host venv
+# `pnpm verify` uses: the code imports these lazily, and the offline tests stub
+# the repo boundary instead of loading a model.
+#
+# faster-whisper 1.2.1 (MIT) runs Whisper tiny.en (MIT weights) on CTranslate2.
+# av (PyAV, BSD) is what faster-whisper decodes audio with, and what the live
+# test uses to measure the recording's real duration.
+faster-whisper==1.2.1
+av==19.0.2
+# faster-whisper imports requests without declaring it on some releases.
+requests>=2.31.0,<3

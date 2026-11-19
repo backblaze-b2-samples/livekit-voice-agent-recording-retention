@@ -1,4 +1,4 @@
-<!-- last_verified: 2026-08-06 -->
+<!-- last_verified: 2026-11-19 -->
 # AGENTS.md
 
 This is the authoritative control surface for all coding agents. Read this first.
@@ -18,8 +18,6 @@ packages/shared/   Shared TypeScript types, generated from the API contract
 docs/              System of record (features, workflows, security, reliability)
 docs/exec-plans/   Execution plans, tech debt, and sample.json (the gen:docs input)
 scripts/gen/       Generator policy: API naming, sample-manifest schema
-infra/vercel/      Vercel deployment contract
-infra/railway/     Railway delivery contract (per-service railway.json at their service roots)
 ```
 <!-- gen:end agents-repo-map -->
 
@@ -29,22 +27,26 @@ These pieces are shared scaffolding rather than app-specific code: keep them, an
 
 **Keep as-is (do not strip, rename, or replace)**
 - **UI kit / design system.** `apps/web/src/components/ui/` (shadcn primitives), the design tokens in `apps/web/src/app/globals.css`, and the `/design` reference page. Build new screens with these primitives; never edit the generated `components/ui/` files directly. Restyling happens through tokens in `globals.css`.
-- **File Explorer.** `/files` route, `apps/web/src/app/files/`, and `apps/web/src/components/files/`. The Files sidebar entry in `apps/web/src/components/layout/app-sidebar.tsx` stays.
-- **Upload.** `/upload` route, `apps/web/src/app/upload/`, and `apps/web/src/components/upload/`. The Upload sidebar entry stays.
-- The sidebar nav itself (Dashboard, Upload, Files, Settings, plus the Design System utility link).
+- **File Explorer.** `/files` route, `apps/web/src/app/files/`, and `apps/web/src/components/files/`: the full-bucket explorer (sessions, reports, anything else). The Files sidebar entry stays.
+- The sidebar nav itself (Dashboard, Sessions, New session, Retention, Files, Settings, plus the Design System utility link).
+
+**Sample-specific surface**
+- **Session archive.** `/sessions` (explorer scoped to `sessions/`), `/sessions/new`, `/sessions/[sessionId]` and `/retention`; backend in `app/{types,repo,service,runtime}/` modules named `sessions`, `session_store`, `livekit_api`, `transcriber`, `webhooks`, `postprocess`, `retention`, plus the `app/jobs/retention.py` CLI.
+- **Compose stack.** `docker-compose.yml`, `infra/livekit/`, `services/agent/` (the scripted test agent and its bundled scripts) and `services/api/Dockerfile`. The browser upload flow of the starter kit is removed on purpose: recordings are written by LiveKit Egress, never uploaded through the app.
+- **Invariants that must not change:** Egress itself writes recordings to B2 (the API never re-uploads one), and every session has a `manifest.json` from the moment it is created.
 
 **Adapt to this app**
-- **Dashboard.** `/` route and `apps/web/src/components/dashboard/` (stats cards, upload chart, recent uploads table) are illustrative defaults. Replace them with metrics, charts, and tables that reflect what this app actually does (e.g. transcripts processed, embeddings indexed, classifications run). New aggregations must flow through the same `runtime -> service -> repo` layering and be exposed via TanStack Query hooks in `apps/web/src/lib/queries.ts` — no bare `useEffect + fetch`, and no hand-added `qk` entry: query keys come from `pnpm gen:api`.
+- **Dashboard.** `/` route and `apps/web/src/components/dashboard/` show sessions by class and status, recorded minutes and bytes, and the last retention run. New aggregations flow through `runtime -> service -> repo` and TanStack Query hooks in `apps/web/src/lib/queries.ts`; no bare `useEffect + fetch`, and no hand-added `qk` entry: query keys come from `pnpm gen:api`.
 - Update `docs/features/dashboard.md` in the same PR as any dashboard change (see §9).
 
-**Why this contract exists** — the UI kit, Files, and Upload pages are the reusable B2-backed scaffolding; stripping them costs the app its whole storage surface. The dashboard is the one screen designed to be rewritten per app.
+**Why this contract exists**: the UI kit and Files pages are the reusable B2-backed scaffolding; the session archive is this sample's purpose.
 
 ## 3. Architectural Invariants
 
 **Backend layering**: `types` -> `config` -> `repo` -> `service` -> `runtime`
 
 - No backward imports across layers
-- No `boto3` outside `repo/`
+- No `boto3`, `livekit` SDK or model stack (`faster_whisper`, `ctranslate2`, `av`) outside `repo/`
 - No business logic in route handlers (`runtime/`)
 - All external APIs wrapped in `repo/` adapters
 - All request/response data validated at boundary (Pydantic models)
@@ -74,6 +76,7 @@ These pieces are shared scaffolding rather than app-specific code: keep them, an
 |------|-------------|
 | No backward imports | `tests/test_structure.py::test_no_backward_imports` |
 | No boto3 outside repo/ | `tests/test_structure.py::test_boto3_only_in_repo` |
+| No LiveKit SDK or model stack outside repo/ | `tests/test_structure.py::test_livekit_sdk_only_in_repo`, `::test_model_stack_only_in_repo` |
 | Backend app Python file size < 300 lines | `tests/test_structure.py::test_api_app_python_file_size_limit` |
 | All layers exist | `tests/test_structure.py::test_all_layers_exist` |
 | No bare print() | `ruff` rule T20 |
@@ -225,8 +228,6 @@ If documentation and implementation conflict, update docs in the same PR. Docume
 | The API contract itself | [docs/api/openapi.json](docs/api/openapi.json) |
 | Execution plans | [docs/exec-plans/](docs/exec-plans/) |
 | Tech debt | [docs/exec-plans/tech-debt-tracker.md](docs/exec-plans/tech-debt-tracker.md) |
-| Deploying to vercel | [infra/vercel/README.md](infra/vercel/README.md) |
-| Deploying to railway | [infra/railway/README.md](infra/railway/README.md) |
 <!-- gen:end agents-doc-map -->
 
 ## 11. When Unsure
@@ -244,7 +245,5 @@ If documentation and implementation conflict, update docs in the same PR. Docume
 ## 13. External Delivery
 
 - Never provision, deploy, migrate, publish, or create an externally reachable preview without the user's explicit approval.
-- For approved Railway or Vercel work, follow the selected platform's delivery
-  contract — [infra/railway/README.md](infra/railway/README.md) or
-  [infra/vercel/README.md](infra/vercel/README.md) — for configuration, review,
-  verification, rollback, and cleanup.
+- This sample ships as Docker Compose only (`make up`); it has no hosted delivery
+  target. Any hosting of it is a new, user-approved change.

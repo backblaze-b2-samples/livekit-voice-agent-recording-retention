@@ -100,3 +100,27 @@ def test_all_layers_exist():
         assert layer_dir.exists(), f"Missing layer directory: app/{layer}/"
         init_file = layer_dir / "__init__.py"
         assert init_file.exists(), f"Missing __init__.py in app/{layer}/"
+
+
+def _imports_outside_repo(prefixes: tuple[str, ...]) -> list[str]:
+    violations = []
+    for layer in LAYER_ORDER:
+        if layer == "repo":
+            continue
+        for pyfile in _get_python_files(APP_ROOT / layer):
+            for imp in _get_imports(pyfile):
+                if any(imp == p or imp.startswith(p + ".") for p in prefixes):
+                    violations.append(f"{pyfile.relative_to(APP_ROOT.parent)}: {imp}")
+    return violations
+
+
+def test_livekit_sdk_only_in_repo():
+    """The LiveKit server SDK is a third-party client: contained in app/repo/."""
+    violations = _imports_outside_repo(("livekit",))
+    assert violations == [], "livekit imported outside repo/:\n" + "\n".join(violations)
+
+
+def test_model_stack_only_in_repo():
+    """faster-whisper / CTranslate2 / PyAV stay in app/repo/ and are imported lazily."""
+    violations = _imports_outside_repo(("faster_whisper", "ctranslate2", "av"))
+    assert violations == [], "model stack imported outside repo/:\n" + "\n".join(violations)

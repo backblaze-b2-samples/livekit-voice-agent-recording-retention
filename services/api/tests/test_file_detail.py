@@ -55,7 +55,7 @@ async def test_detail_returns_checksums_for_text_file(client, monkeypatch):
     monkeypatch.setattr(files_service, "get_object_bytes", lambda key: TEXT_BYTES)
 
     resp = await client.get(
-        "/files-by-key/detail", params={"key": "uploads/note.txt"}
+        "/api/files-by-key/detail", params={"key": "uploads/note.txt"}
     )
 
     assert resp.status_code == 200
@@ -85,7 +85,7 @@ async def test_detail_extracts_image_dimensions(client, monkeypatch):
     monkeypatch.setattr(files_service, "get_object_bytes", lambda key: png)
 
     resp = await client.get(
-        "/files-by-key/detail", params={"key": "uploads/pixel.png"}
+        "/api/files-by-key/detail", params={"key": "uploads/pixel.png"}
     )
 
     assert resp.status_code == 200
@@ -99,7 +99,7 @@ async def test_detail_missing_file_returns_404(client, monkeypatch):
     monkeypatch.setattr(files_service, "get_file_metadata", lambda key: None)
 
     resp = await client.get(
-        "/files-by-key/detail", params={"key": "uploads/gone.txt"}
+        "/api/files-by-key/detail", params={"key": "uploads/gone.txt"}
     )
 
     assert resp.status_code == 404
@@ -120,7 +120,7 @@ async def test_detail_oversized_file_rejected_without_download(client, monkeypat
     monkeypatch.setattr(files_service, "get_object_bytes", _boom)
 
     resp = await client.get(
-        "/files-by-key/detail", params={"key": "uploads/huge.bin"}
+        "/api/files-by-key/detail", params={"key": "uploads/huge.bin"}
     )
 
     assert resp.status_code == 413

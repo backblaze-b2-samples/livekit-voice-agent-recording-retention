@@ -1,18 +1,18 @@
 "use client";
 
-import { FileIcon, HardDrive, Upload, Download } from "lucide-react";
+import { Archive, AudioLines, CheckCircle2, HardDrive } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ErrorState } from "@/components/ui/error-state";
 import { LoadingNotice } from "@/components/common/loading-notice";
-import { useFileStats } from "@/lib/queries";
+import { useArchiveStats } from "@/lib/queries";
+import { formatMinutes } from "@/lib/session-format";
 
 export function StatsCards() {
-  const { data: stats, isLoading, error, refetch } = useFileStats();
+  const { data: stats, isLoading, error, refetch } = useArchiveStats();
 
-  // Surface fetch failures inline rather than rendering "0 files / 0 B" —
-  // that lies to the user about the bucket state when really the API is
-  // just unreachable.
+  // Surface fetch failures inline rather than rendering zeros: "0 sessions"
+  // would lie about the archive when really the API is unreachable.
   if (error) {
     return (
       <Card>
@@ -23,27 +23,28 @@ export function StatsCards() {
     );
   }
 
+  const last = stats?.last_report;
   const cards = [
-    { title: "Total Files", value: stats?.total_files ?? 0, icon: FileIcon },
-    { title: "Storage Used", value: stats?.total_size_human ?? "0 B", icon: HardDrive },
-    { title: "Uploads Today", value: stats?.uploads_today ?? 0, icon: Upload },
-    { title: "Total Downloads", value: stats?.total_downloads ?? 0, icon: Download },
+    { title: "Sessions", value: stats?.total_sessions ?? 0, icon: AudioLines },
+    {
+      title: "Recorded",
+      value: `${formatMinutes(stats?.recorded_seconds ?? 0)} / ${stats?.recorded_bytes_human ?? "0 B"}`,
+      icon: HardDrive,
+    },
+    { title: "Passed evaluations", value: stats?.passed_evaluations ?? 0, icon: CheckCircle2 },
+    {
+      title: "Last retention run",
+      value: last ? `${last.date}: -${last.removed_total}` : "never",
+      icon: Archive,
+    },
   ];
 
   return (
     <>
-      {/* Stats need a full bucket listing, which measured ~8s on a 16k-object
-          bucket. Four blank skeleton cards said nothing about that; this states
-          it in words and escalates if the wait keeps going. */}
-      {isLoading && (
-        <LoadingNotice className="mb-3" subject="bucket stats" />
-      )}
+      {isLoading && <LoadingNotice className="mb-3" subject="archive stats" />}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {cards.map((card, i) => (
-          <Card
-            key={card.title}
-            className={`card-hover animate-fade-in-up stagger-${i + 1}`}
-          >
+          <Card key={card.title} className={`card-hover animate-fade-in-up stagger-${i + 1}`}>
             <CardHeader className="flex flex-row items-center justify-between pt-4 pb-2 px-4 space-y-0">
               <CardTitle className="text-xs font-semibold text-muted-foreground">
                 {card.title}

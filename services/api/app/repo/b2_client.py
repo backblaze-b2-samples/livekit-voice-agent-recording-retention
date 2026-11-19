@@ -1,8 +1,6 @@
 import functools
-import io
 import mimetypes
 import time
-from datetime import UTC, datetime
 from threading import Lock
 from urllib.parse import quote
 
@@ -51,7 +49,7 @@ def get_s3_client():
             read_timeout=30,
             retries={"mode": "standard", "total_max_attempts": 3},
             signature_version="s3v4",
-            user_agent_extra="b2ai-oss-start",
+            user_agent_extra="b2ai-livekit-agent-session-archive",
         ),
     )
 
@@ -78,35 +76,6 @@ def check_connectivity() -> bool:
     with _health_lock:
         _health_cache = (time.monotonic(), ok)
     return ok
-
-
-def upload_file(
-    file_data: bytes, key: str, content_type: str
-) -> FileMetadata:
-    """Upload file to B2. Raises RuntimeError on S3 failure."""
-    client = get_s3_client()
-    try:
-        client.put_object(
-            Bucket=settings.b2_bucket_name,
-            Key=key,
-            Body=io.BytesIO(file_data),
-            ContentType=content_type,
-        )
-    except ClientError as e:
-        raise RuntimeError(f"B2 upload failed for '{key}': {e}") from e
-    _invalidate_list_cache()  # new object must show up in listings/stats now
-    folder, filename = _split_key(key)
-    size = len(file_data)
-    return FileMetadata(
-        key=key,
-        filename=filename,
-        folder=folder,
-        size_bytes=size,
-        size_human=humanize_bytes(size),
-        content_type=content_type,
-        uploaded_at=datetime.now(UTC),
-        url=_public_url(key),
-    )
 
 
 def _list_all_objects(prefix: str = "") -> list[dict]:
@@ -249,22 +218,3 @@ def get_presigned_url(
         )
     except ClientError as e:
         raise RuntimeError(f"B2 presign failed for '{key}': {e}") from e
-
-
-def get_upload_stats() -> dict:
-    """Aggregate stats across every object in the bucket.
-
-    Raises RuntimeError on S3 failure.
-    """
-    contents = _list_all_objects()
-    total_size = sum(obj["Size"] for obj in contents)
-    today = datetime.now(UTC).date()
-    uploads_today = sum(
-        1 for obj in contents if obj["LastModified"].date() == today
-    )
-    return {
-        "total_files": len(contents),
-        "total_size_bytes": total_size,
-        "total_size_human": humanize_bytes(total_size),
-        "uploads_today": uploads_today,
-    }

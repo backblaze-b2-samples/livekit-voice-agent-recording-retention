@@ -1,0 +1,18 @@
+{
+  "id": "appointment-reminder",
+  "title": "Appointment reminder",
+  "description": "An outbound reminder that confirms a date and asks for a reply.",
+  "pause_s": 0.6,
+  "lines": [
+    "Good morning, this is an automated reminder from the dental clinic.",
+    "Your appointment is on Thursday at ten in the morning.",
+    "Please arrive ten minutes early to fill in the forms.",
+    "If you need to change the time, reply to the message we sent you.",
+    "We look forward to seeing you."
+  ],
+  "expected_phrases": [
+    "dental clinic",
+    "thursday",
+    "ten minutes early"
+  ]
+}
